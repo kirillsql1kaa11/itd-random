@@ -197,6 +197,16 @@ class SupabaseService {
             list = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
         }
 
+        const rejected = JSON.parse(localStorage.getItem('itd_rejected_post_ids') || '[]');
+        const approved = JSON.parse(localStorage.getItem('itd_approved_post_ids') || '[]');
+
+        list = list.filter(item => {
+            if (item.status && item.status !== 'pending') return false;
+            if (item.id && rejected.includes(String(item.id))) return false;
+            if (item.id && approved.includes(String(item.id))) return false;
+            return true;
+        });
+
         return list.map(item => {
             let rawText = item.post_text || '';
             let postUrl = item.post_url || '';
@@ -228,6 +238,18 @@ class SupabaseService {
         await this.savePost(postRecord);
         await window.quizDB.savePost(postRecord);
 
+        if (suggestion.id) {
+            const approved = JSON.parse(localStorage.getItem('itd_approved_post_ids') || '[]');
+            if (!approved.includes(String(suggestion.id))) {
+                approved.push(String(suggestion.id));
+                localStorage.setItem('itd_approved_post_ids', JSON.stringify(approved));
+            }
+        }
+
+        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        const updated = local.filter(s => s.id !== suggestion.id);
+        localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
+
         if (this.isConfigured && suggestion.id && !String(suggestion.id).startsWith('sugg_')) {
             try {
                 await this.request(`suggestions_posts?id=eq.${suggestion.id}`, {
@@ -236,17 +258,33 @@ class SupabaseService {
             } catch (e) {
                 console.warn(e);
             }
+            try {
+                await this.request(`suggestions_posts?id=eq.${suggestion.id}`, {
+                    method: 'PATCH',
+                    body: { status: 'approved' }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
         }
-
-        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
-        const updated = local.filter(s => s.id !== suggestion.id);
-        localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
 
         return postRecord;
     }
 
     async rejectSuggestedPost(suggestionId) {
-        if (this.isConfigured && suggestionId && !String(suggestionId).startsWith('sugg_')) {
+        if (!suggestionId) return;
+
+        const rejected = JSON.parse(localStorage.getItem('itd_rejected_post_ids') || '[]');
+        if (!rejected.includes(String(suggestionId))) {
+            rejected.push(String(suggestionId));
+            localStorage.setItem('itd_rejected_post_ids', JSON.stringify(rejected));
+        }
+
+        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        const updated = local.filter(s => s.id !== suggestionId);
+        localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
+
+        if (this.isConfigured && !String(suggestionId).startsWith('sugg_')) {
             try {
                 await this.request(`suggestions_posts?id=eq.${suggestionId}`, {
                     method: 'DELETE'
@@ -254,11 +292,15 @@ class SupabaseService {
             } catch (e) {
                 console.warn(e);
             }
+            try {
+                await this.request(`suggestions_posts?id=eq.${suggestionId}`, {
+                    method: 'PATCH',
+                    body: { status: 'rejected' }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
         }
-
-        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
-        const updated = local.filter(s => s.id !== suggestionId);
-        localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
     }
 
     async submitAuthorSuggestion({ name, handle, bio, submittedBy }) {
@@ -303,7 +345,16 @@ class SupabaseService {
         if (list.length === 0) {
             list = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
         }
-        return list;
+
+        const rejected = JSON.parse(localStorage.getItem('itd_rejected_author_ids') || '[]');
+        const approved = JSON.parse(localStorage.getItem('itd_approved_author_ids') || '[]');
+
+        return list.filter(item => {
+            if (item.status && item.status !== 'pending') return false;
+            if (item.id && rejected.includes(String(item.id))) return false;
+            if (item.id && approved.includes(String(item.id))) return false;
+            return true;
+        });
     }
 
     async approveSuggestedAuthor(suggestion) {
@@ -333,6 +384,18 @@ class SupabaseService {
         await this.saveAuthor(authorRecord);
         await window.authorsManager.addAuthor(authorRecord);
 
+        if (suggestion.id) {
+            const approved = JSON.parse(localStorage.getItem('itd_approved_author_ids') || '[]');
+            if (!approved.includes(String(suggestion.id))) {
+                approved.push(String(suggestion.id));
+                localStorage.setItem('itd_approved_author_ids', JSON.stringify(approved));
+            }
+        }
+
+        const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
+        const updated = local.filter(s => s.id !== suggestion.id);
+        localStorage.setItem('itd_local_author_suggestions', JSON.stringify(updated));
+
         if (this.isConfigured && suggestion.id && !String(suggestion.id).startsWith('sugg_auth_')) {
             try {
                 await this.request(`suggestions_authors?id=eq.${suggestion.id}`, {
@@ -341,17 +404,33 @@ class SupabaseService {
             } catch (e) {
                 console.warn(e);
             }
+            try {
+                await this.request(`suggestions_authors?id=eq.${suggestion.id}`, {
+                    method: 'PATCH',
+                    body: { status: 'approved' }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
         }
-
-        const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
-        const updated = local.filter(s => s.id !== suggestion.id);
-        localStorage.setItem('itd_local_author_suggestions', JSON.stringify(updated));
 
         return authorRecord;
     }
 
     async rejectSuggestedAuthor(suggestionId) {
-        if (this.isConfigured && suggestionId && !String(suggestionId).startsWith('sugg_auth_')) {
+        if (!suggestionId) return;
+
+        const rejected = JSON.parse(localStorage.getItem('itd_rejected_author_ids') || '[]');
+        if (!rejected.includes(String(suggestionId))) {
+            rejected.push(String(suggestionId));
+            localStorage.setItem('itd_rejected_author_ids', JSON.stringify(rejected));
+        }
+
+        const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
+        const updated = local.filter(s => s.id !== suggestionId);
+        localStorage.setItem('itd_local_author_suggestions', JSON.stringify(updated));
+
+        if (this.isConfigured && !String(suggestionId).startsWith('sugg_auth_')) {
             try {
                 await this.request(`suggestions_authors?id=eq.${suggestionId}`, {
                     method: 'DELETE'
@@ -359,11 +438,15 @@ class SupabaseService {
             } catch (e) {
                 console.warn(e);
             }
+            try {
+                await this.request(`suggestions_authors?id=eq.${suggestionId}`, {
+                    method: 'PATCH',
+                    body: { status: 'rejected' }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
         }
-
-        const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
-        const updated = local.filter(s => s.id !== suggestionId);
-        localStorage.setItem('itd_local_author_suggestions', JSON.stringify(updated));
     }
 
     async getAdminStats() {
@@ -415,11 +498,11 @@ class SupabaseService {
                 const a = await this.request('authors?select=id');
                 stats.totalAuthors = Array.isArray(a) ? a.length : 0;
 
-                const sp = await this.request('suggestions_posts?select=id');
-                stats.pendingPosts = Array.isArray(sp) ? sp.length : 0;
+                const postsList = await this.getSuggestedPosts();
+                stats.pendingPosts = postsList.length;
 
-                const sa = await this.request('suggestions_authors?select=id');
-                stats.pendingAuthors = Array.isArray(sa) ? sa.length : 0;
+                const authorsList = await this.getSuggestedAuthors();
+                stats.pendingAuthors = authorsList.length;
             } else {
                 const p = await window.quizDB.getAllPosts();
                 stats.totalPosts = p.length;
