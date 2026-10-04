@@ -1,94 +1,4 @@
-
-const DEFAULT_AUTHORS = [
-    {
-        id: "nuksta",
-        name: "нукста",
-        handle: "@nuksta",
-        avatarColor: "linear-gradient(135deg, #0288d1, #26c6da)",
-        avatarText: "Н",
-        badge: "Основатель",
-        bio: "Главный архитектор ИТД. Пишет про обновления, философию минимализма и ночной продакшн.",
-        verified: true,
-        style: "Технические анонсы, краткие мысли, манифесты"
-    },
-    {
-        id: "shlyapa",
-        name: "Шляпа Боярского",
-        handle: "@shlyapa",
-        avatarColor: "linear-gradient(135deg, #7c3aed, #ec4899)",
-        avatarText: "🎩",
-        badge: "Топ-автор",
-        bio: "Тысяча чертей! Искусство щитпостинга высшей пробы и саркастичные наблюдения о жизни.",
-        verified: true,
-        style: "Острый сарказм, абсурдный юмор, щитпост"
-    },
-    {
-        id: "senior_pomidor",
-        name: "Сениор Помидор 🍅",
-        handle: "@senior_pomidor",
-        avatarColor: "linear-gradient(135deg, #ef4444, #f97316)",
-        avatarText: "🍅",
-        badge: "Dev",
-        bio: "10 лет в IT, 8 выгораний, 0 открытых пуллреквестов в пятницу вечером.",
-        verified: false,
-        style: "Боли разработчиков, легаси, кринж с собеседований"
-    },
-    {
-        id: "cyber_kotik",
-        name: "Киберкотик 🐾",
-        handle: "@cyber_kotik",
-        avatarColor: "linear-gradient(135deg, #10b981, #06b6d4)",
-        avatarText: "🐱",
-        badge: "Инсайт",
-        bio: "Спит на клавиатуре, нажимает случайные клавиши и пишет лучший код в компании.",
-        verified: true,
-        style: "Милые посты, ночные мысли, IT-жиза"
-    },
-    {
-        id: "itd_philosopher",
-        name: "Ночной Философ",
-        handle: "@philosopher",
-        avatarColor: "linear-gradient(135deg, #6366f1, #a855f7)",
-        avatarText: "🌌",
-        badge: "Лонгриды",
-        bio: "Почему мы скроллим ленту в 3 часа ночи вместо сна? Глубокие рассуждения под шум дождя.",
-        verified: false,
-        style: "Меланхолия, ночные размышления, длинные цитаты"
-    },
-    {
-        id: "doshirak_ceo",
-        name: "CEO Доширачной",
-        handle: "@doshik_king",
-        avatarColor: "linear-gradient(135deg, #f59e0b, #ef4444)",
-        avatarText: "🍜",
-        badge: "Стартапы",
-        bio: "Привлек 0$ инвестиций, но уже переписал бизнес-модель на лапшу с говядиной.",
-        verified: false,
-        style: "Ирония над стартапами, венчуром и криптой"
-    },
-    {
-        id: "devops_vova",
-        name: "Девопс Вова в огне",
-        handle: "@vova_prod",
-        avatarColor: "linear-gradient(135deg, #dc2626, #b91c1c)",
-        avatarText: "🔥",
-        badge: "Prod Down",
-        bio: "Кубернетес упал, бэкапов нет, зато пятничный деплой прошел по расписанию.",
-        verified: true,
-        style: "Паника в проде, докер, логи и мониторинг"
-    },
-    {
-        id: "ai_barmaley",
-        name: "Промпт-Инженер 3000",
-        handle: "@gpt_overlord",
-        avatarColor: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-        avatarText: "🤖",
-        badge: "AI Hype",
-        bio: "Заменил всю команду одной нейросетью, теперь нейросеть просит отпуск за свой счет.",
-        verified: false,
-        style: "Нейросети, будущее, промпты и галлюцинации LLM"
-    }
-];
+const DEFAULT_AUTHORS = [];
 
 class AuthorsManager {
     constructor() {
@@ -96,17 +6,25 @@ class AuthorsManager {
     }
 
     async load() {
+        if (window.supabaseService?.isConfigured) {
+            try {
+                const remote = await window.supabaseService.fetchRemoteAuthors();
+                if (Array.isArray(remote)) {
+                    this.authors = remote;
+                    await window.quizDB.saveAuthors(this.authors);
+                    return this.authors;
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
         try {
             const saved = await window.quizDB.getAuthors();
-            if (saved && saved.length > 0) {
-                this.authors = saved;
-            } else {
-                this.authors = [...DEFAULT_AUTHORS];
-                await window.quizDB.saveAuthors(this.authors);
-            }
+            this.authors = Array.isArray(saved) ? saved : [];
         } catch (e) {
-            console.warn('Failed to load authors from DB, using defaults', e);
-            this.authors = [...DEFAULT_AUTHORS];
+            console.warn(e);
+            this.authors = [];
         }
         return this.authors;
     }
@@ -116,6 +34,7 @@ class AuthorsManager {
     }
 
     getById(id) {
+        if (!id) return null;
         return this.authors.find(a => a.id === id || a.handle === id || a.name.toLowerCase() === id.toLowerCase());
     }
 
@@ -136,6 +55,15 @@ class AuthorsManager {
         if (!author.avatarText) {
             author.avatarText = (author.name || 'А')[0].toUpperCase();
         }
+
+        if (window.supabaseService?.isConfigured) {
+            try {
+                await window.supabaseService.saveAuthor(author);
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
         const existingIndex = this.authors.findIndex(a => a.id === author.id);
         if (existingIndex >= 0) {
             this.authors[existingIndex] = author;
@@ -147,6 +75,13 @@ class AuthorsManager {
     }
 
     async deleteAuthor(id) {
+        if (window.supabaseService?.isConfigured) {
+            try {
+                await window.supabaseService.deleteAuthor(id);
+            } catch (e) {
+                console.warn(e);
+            }
+        }
         this.authors = this.authors.filter(a => a.id !== id);
         await window.quizDB.saveAuthors(this.authors);
     }
@@ -170,8 +105,8 @@ class AuthorsManager {
         let fallbackIndex = 1;
         while (selected.length < count) {
             selected.push({
-                id: `fallback_author_${fallbackIndex}`,
-                name: `Автор ИТД #${fallbackIndex}`,
+                id: `fallback_${fallbackIndex}`,
+                name: `Автор #${fallbackIndex}`,
                 handle: `@author_${fallbackIndex}`,
                 avatarColor: 'linear-gradient(135deg, #374151, #1f2937)',
                 avatarText: `${fallbackIndex}`,

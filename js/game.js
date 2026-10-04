@@ -30,9 +30,24 @@ class GameEngine {
 
     async start(mode = 'blitz') {
         this.mode = mode;
-        const allPosts = await window.quizDB.getAllPosts();
+        let allPosts = [];
+        if (window.supabaseService?.isConfigured) {
+            try {
+                const remote = await window.supabaseService.fetchRemotePosts();
+                if (Array.isArray(remote) && remote.length > 0) {
+                    allPosts = remote;
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+        if (allPosts.length === 0) {
+            allPosts = await window.quizDB.getAllPosts();
+        }
+
         if (!allPosts || allPosts.length === 0) {
-            window.app.showToast('Нет доступных постов для викторины!', 'error');
+            window.app.showToast('В базе пока нет постов! Добавьте пост через панель управления или предложите на главной.', 'info');
+            window.app.switchTab('home');
             return;
         }
 

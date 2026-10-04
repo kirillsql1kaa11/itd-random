@@ -1,4 +1,3 @@
-
 class AdminManager {
     constructor() {
         this.isAuthenticated = false;
@@ -6,15 +5,16 @@ class AdminManager {
         this.editingPostId = null;
         this.isDrawingMask = false;
         this.maskHistory = [];
+        this.selectedAuthor = null;
     }
 
     init() {
         this.bindEvents();
         this.setupPasteListener();
+        this.setupAuthorSearch();
     }
 
     bindEvents() {
-        
         const dropzone = document.getElementById('admin-dropzone');
         const fileInput = document.getElementById('admin-file-input');
 
@@ -46,18 +46,6 @@ class AdminManager {
         }
 
         this.setupCensorCanvas();
-
-        const authorSelect = document.getElementById('admin-author-select');
-        if (authorSelect) {
-            authorSelect.addEventListener('change', (e) => {
-                const newAuthorBox = document.getElementById('admin-new-author-fields');
-                if (e.target.value === '__new__') {
-                    newAuthorBox.classList.remove('hidden');
-                } else {
-                    newAuthorBox.classList.add('hidden');
-                }
-            });
-        }
 
         const form = document.getElementById('admin-post-form');
         if (form) {
@@ -98,54 +86,160 @@ class AdminManager {
                 this.saveNewAuthorFromModal();
             });
         }
-
-        const formDbConfig = document.getElementById('form-admin-supabase');
-        if (formDbConfig) {
-            
-            document.getElementById('input-admin-sb-url').value = window.supabaseService.url;
-            document.getElementById('input-admin-sb-key').value = window.supabaseService.key;
-
-            formDbConfig.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const url = document.getElementById('input-admin-sb-url').value.trim();
-                const key = document.getElementById('input-admin-sb-key').value.trim();
-                window.supabaseService.setCredentials(url, key);
-                
-                window.app.showToast('Проверка подключения к Supabase...', 'info');
-                const ok = await window.supabaseService.testConnection();
-                if (ok) {
-                    window.app.showToast('Подключение к Supabase успешно установлено!', 'success');
-                } else {
-                    window.app.showToast('Подключение сохранено (проверьте URL/Key при ошибке)', 'warning');
-                }
-                this.updateSupabaseBadge();
-            });
-        }
-
-        const btnClearDb = document.getElementById('btn-clear-supabase');
-        if (btnClearDb) {
-            btnClearDb.addEventListener('click', () => {
-                window.supabaseService.clearCredentials();
-                document.getElementById('input-admin-sb-url').value = '';
-                document.getElementById('input-admin-sb-key').value = '';
-                window.app.showToast('Параметры Supabase сброшены (режим локальной БД)', 'info');
-                this.updateSupabaseBadge();
-            });
-        }
     }
 
-    updateSupabaseBadge() {
-        const badge = document.getElementById('admin-db-status');
-        if (!badge) return;
-        if (window.supabaseService.isConfigured) {
-            badge.textContent = 'Supabase Cloud: Активен';
-            badge.style.color = 'var(--accent-green)';
-            badge.style.background = 'rgba(0, 186, 124, 0.15)';
-        } else {
-            badge.textContent = 'Локальная БД (IndexedDB)';
-            badge.style.color = 'var(--text-muted)';
-            badge.style.background = 'var(--bg-secondary)';
+    setupAuthorSearch() {
+        const searchInput = document.getElementById('admin-post-author-search');
+        const dropdown = document.getElementById('admin-author-suggestions');
+        const hiddenInput = document.getElementById('admin-post-author-id');
+        const pillContainer = document.getElementById('admin-selected-author-pill');
+
+        if (!searchInput || !dropdown) return;
+
+        const renderSuggestions = (query) => {
+            const matches = window.authorsManager.search(query);
+            dropdown.innerHTML = '';
+
+            if (matches.length === 0) {
+                dropdown.innerHTML = `<div style="padding:10px 14px; font-size:12px; color:var(--text-muted);">Авторы не найдены. Создайте автора в разделе авторов ниже.</div>`;
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            matches.slice(0, 8).forEach(a => {
+                const item = document.createElement('div');
+                item.className = 'author-suggestion-item';
+                item.innerHTML = `
+                    <div class="asi-avatar" style="background:${a.avatarColor || '#333'}">${a.avatarText || a.name[0]}</div>
+                    <div class="asi-meta">
+                        <div class="asi-name">${escapeHtml(a.name)}</div>
+                        <div class="asi-handle">${escapeHtml(a.handle || '@' + a.id)}</div>
+                    </div>
+                `;
+
+                item.addEventListener('click', () => {
+                    this.selectAuthor(a);
+                    dropdown.classList.add('hidden');
+                    searchInput.value = '';
+                });
+
+                dropdown.appendChild(item);
+            });
+
+            dropdown.classList.remove('hidden');
+        };
+
+        searchInput.addEventListener('focus', () => {
+            renderSuggestions(searchInput.value);
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            renderSuggestions(e.target.value);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+    }
+
+    selectAuthor(author) {
+        this.selectedAuthor = author;
+        const hiddenInput = document.getElementById('admin-post-author-id');
+        const pillContainer = document.getElementById('admin-selected-author-pill');
+        const searchInput = document.getElementById('admin-post-author-search');
+
+        hiddenInput.value = author.id;
+        pillContainer.innerHTML = `
+            <div class="sap-avatar" style="background:${author.avatarColor || '#333'}">${author.avatarText || author.name[0]}</div>
+            <span class="sap-name">${escapeHtml(author.name)}</span>
+            <span class="sap-handle">${escapeHtml(author.handle || '@' + author.id)}</span>
+            <button type="button" class="sap-remove-btn" title="Сменить автора">✕</button>
+        `;
+
+        pillContainer.querySelector('.sap-remove-btn').addEventListener('click', () => {
+            this.clearSelectedAuthor();
+        });
+
+        pillContainer.classList.remove('hidden');
+        searchInput.placeholder = 'Автор выбран (нажмите ✕ для смены)';
+    }
+
+    clearSelectedAuthor() {
+        this.selectedAuthor = null;
+        document.getElementById('admin-post-author-id').value = '';
+        const pill = document.getElementById('admin-selected-author-pill');
+        pill.innerHTML = '';
+        pill.classList.add('hidden');
+        const searchInput = document.getElementById('admin-post-author-search');
+        searchInput.placeholder = 'Начните вводить имя или @handle автора...';
+        searchInput.focus();
+    }
+
+    async refreshSuggestedPosts() {
+        const container = document.getElementById('admin-pending-suggestions-list');
+        const countBadge = document.getElementById('admin-pending-sugg-count');
+        if (!container) return;
+
+        container.innerHTML = `<div class="table-empty">Загрузка предложенных постов...</div>`;
+
+        const suggestions = await window.supabaseService.getSuggestedPosts();
+        countBadge.textContent = `${suggestions.length} предложений`;
+
+        container.innerHTML = '';
+        if (suggestions.length === 0) {
+            container.innerHTML = `<div class="table-empty">Нет постов, ожидающих модерации.</div>`;
+            return;
         }
+
+        suggestions.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'admin-suggestion-card';
+
+            const author = item.author_id ? window.authorsManager.getById(item.author_id) : null;
+            const authorDisplayName = author ? `${author.name} (${author.handle})` : (item.author_name || 'Не указан');
+
+            card.innerHTML = `
+                <img src="${item.screenshot}" alt="Предложенный скриншот" class="asc-thumb">
+                <div class="asc-info">
+                    <div class="asc-author-line">Автор: ${escapeHtml(authorDisplayName)}</div>
+                    <div class="asc-meta-line">Предложил: <strong>${escapeHtml(item.submitted_by || 'Аноним')}</strong></div>
+                    ${item.post_text ? `<p class="asc-comment">${escapeHtml(item.post_text)}</p>` : ''}
+                    <div class="asc-actions">
+                        <button type="button" class="btn-approve">✓ Одобрить в игру</button>
+                        <button type="button" class="btn-reject">✕ Отклонить</button>
+                    </div>
+                </div>
+            `;
+
+            card.querySelector('.asc-thumb').addEventListener('click', () => {
+                window.gameEngine.toggleLightboxCustom(item.screenshot);
+            });
+
+            card.querySelector('.btn-approve').addEventListener('click', async () => {
+                let authorId = item.author_id;
+                if (!authorId) {
+                    const fallback = window.authorsManager.getAll()[0];
+                    authorId = fallback ? fallback.id : 'unknown';
+                }
+
+                await window.supabaseService.approveSuggestedPost(item, authorId);
+                window.app.showToast('Пост одобрен и добавлен в викторину!', 'success');
+                await this.refreshSuggestedPosts();
+                await this.refreshPostsTable();
+            });
+
+            card.querySelector('.btn-reject').addEventListener('click', async () => {
+                if (confirm('Отклонить предложенный пост?')) {
+                    await window.supabaseService.rejectSuggestedPost(item.id);
+                    window.app.showToast('Пост отклонен', 'info');
+                    await this.refreshSuggestedPosts();
+                }
+            });
+
+            container.appendChild(card);
+        });
     }
 
     setupPasteListener() {
@@ -323,31 +417,21 @@ class AdminManager {
         }
     }
 
-    async refreshAuthorsDropdown() {
-        const select = document.getElementById('admin-author-select');
-        if (!select) return;
-
-        const authors = window.authorsManager.getAll();
-        select.innerHTML = '<option value="" disabled selected>— Выберите автора из списка —</option>';
-
-        authors.forEach(a => {
-            const opt = document.createElement('option');
-            opt.value = a.id;
-            opt.textContent = `${a.name} (${a.handle || '@' + a.id})`;
-            select.appendChild(opt);
-        });
-
-        const newOpt = document.createElement('option');
-        newOpt.value = '__new__';
-        newOpt.textContent = '+ Создать нового автора...';
-        select.appendChild(newOpt);
-    }
-
     async refreshPostsTable() {
         const tableBody = document.getElementById('admin-posts-tbody');
         if (!tableBody) return;
 
-        const posts = await window.quizDB.getAllPosts();
+        let posts = [];
+        if (window.supabaseService?.isConfigured) {
+            const remotePosts = await window.supabaseService.fetchRemotePosts();
+            if (Array.isArray(remotePosts)) {
+                posts = remotePosts;
+            }
+        }
+        if (posts.length === 0) {
+            posts = await window.quizDB.getAllPosts();
+        }
+
         document.getElementById('admin-total-posts-badge').textContent = `${posts.length} постов`;
 
         tableBody.innerHTML = '';
@@ -400,6 +484,11 @@ class AdminManager {
         const authors = window.authorsManager.getAll();
         container.innerHTML = '';
 
+        if (authors.length === 0) {
+            container.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">Авторов в базе пока нет. Нажмите «+ Добавить автора».</div>`;
+            return;
+        }
+
         authors.forEach(a => {
             const card = document.createElement('div');
             card.className = 'admin-author-item';
@@ -418,10 +507,9 @@ class AdminManager {
             `;
 
             card.querySelector('.btn-del-author').addEventListener('click', async () => {
-                if (confirm(`Удалить автора "${a.name}" из пула вариантов?`)) {
+                if (confirm(`Удалить автора "${a.name}" из базы?`)) {
                     await window.authorsManager.deleteAuthor(a.id);
                     await this.refreshAuthorsList();
-                    await this.refreshAuthorsDropdown();
                     window.app.showToast('Автор удален', 'info');
                 }
             });
@@ -436,37 +524,10 @@ class AdminManager {
             return;
         }
 
-        let authorId = document.getElementById('admin-author-select').value;
+        const authorId = document.getElementById('admin-post-author-id').value;
         if (!authorId) {
-            window.app.showToast('Укажите правильного автора поста!', 'error');
+            window.app.showToast('Пожалуйста, найдите и выберите автора поста через строку поиска!', 'error');
             return;
-        }
-
-        if (authorId === '__new__') {
-            const newName = document.getElementById('admin-new-author-name').value.trim();
-            const newHandle = document.getElementById('admin-new-author-handle').value.trim();
-            const newBio = document.getElementById('admin-new-author-bio').value.trim();
-
-            if (!newName) {
-                window.app.showToast('Введите имя нового автора!', 'error');
-                return;
-            }
-
-            const cleanId = (newHandle ? newHandle.replace('@', '') : newName)
-                .toLowerCase()
-                .replace(/[^a-z0-9а-яё_]/gi, '_') + '_' + Date.now();
-
-            const newAuthor = await window.authorsManager.addAuthor({
-                id: cleanId,
-                name: newName,
-                handle: newHandle ? (newHandle.startsWith('@') ? newHandle : '@' + newHandle) : '@' + cleanId,
-                bio: newBio,
-                verified: false
-            });
-
-            authorId = newAuthor.id;
-            await this.refreshAuthorsDropdown();
-            await this.refreshAuthorsList();
         }
 
         const postText = document.getElementById('admin-post-text').value.trim();
@@ -486,7 +547,9 @@ class AdminManager {
             createdAt: Date.now()
         };
 
+        await window.supabaseService.savePost(postRecord);
         await window.quizDB.savePost(postRecord);
+
         window.app.showToast(this.editingPostId ? 'Пост успешно обновлен!' : 'Вопрос добавлен в викторину!', 'success');
         window.soundFX.playCorrect();
 
@@ -501,9 +564,10 @@ class AdminManager {
         document.getElementById('admin-post-tags').value = (post.tags || []).join(', ');
         document.getElementById('admin-post-diff').value = post.difficulty || 'normal';
 
-        const select = document.getElementById('admin-author-select');
-        select.value = post.correctAuthorId;
-        document.getElementById('admin-new-author-fields').classList.add('hidden');
+        const author = window.authorsManager.getById(post.correctAuthorId);
+        if (author) {
+            this.selectAuthor(author);
+        }
 
         this.loadImageIntoCanvas(post.screenshot);
 
@@ -521,6 +585,7 @@ class AdminManager {
 
     async deletePost(id) {
         if (confirm('Точно удалить этот вопрос из викторины?')) {
+            await window.supabaseService.deletePost(id);
             await window.quizDB.deletePost(id);
             window.app.showToast('Вопрос удален', 'info');
             await this.refreshPostsTable();
@@ -531,12 +596,12 @@ class AdminManager {
         this.editingPostId = null;
         this.currentScreenshotDataUrl = null;
         this.maskHistory = [];
+        this.clearSelectedAuthor();
 
         document.getElementById('admin-post-form').reset();
         document.getElementById('admin-preview-container').classList.add('hidden');
         document.getElementById('admin-dropzone').classList.remove('hidden');
-        document.getElementById('admin-new-author-fields').classList.add('hidden');
-        document.getElementById('admin-form-title').textContent = 'Загрузка нового скриншота поста';
+        document.getElementById('admin-form-title').textContent = 'Загрузка скриншота поста';
         document.getElementById('btn-admin-submit').textContent = 'Добавить в викторину';
         document.getElementById('admin-file-input').value = '';
     }
@@ -559,7 +624,6 @@ class AdminManager {
             try {
                 await window.quizDB.importBackup(e.target.result);
                 await window.authorsManager.load();
-                await this.refreshAuthorsDropdown();
                 await this.refreshAuthorsList();
                 await this.refreshPostsTable();
                 window.app.showToast('База данных успешно импортирована!', 'success');
@@ -572,10 +636,13 @@ class AdminManager {
     }
 
     async resetPresets() {
-        if (confirm('Сбросить вопросы к стандартному стартовому паку ИТД?')) {
-            await window.PresetsManager.initPresetsIfEmpty();
+        if (confirm('Очистить локальные вопросы?')) {
+            const all = await window.quizDB.getAllPosts();
+            for (const p of all) {
+                await window.quizDB.deletePost(p.id);
+            }
             await this.refreshPostsTable();
-            window.app.showToast('Стартовый пак восстановлен', 'success');
+            window.app.showToast('База постов очищена', 'info');
         }
     }
 
@@ -605,9 +672,8 @@ class AdminManager {
 
         document.getElementById('form-add-author').reset();
         document.getElementById('modal-new-author').classList.add('hidden');
-        await this.refreshAuthorsDropdown();
         await this.refreshAuthorsList();
-        window.app.showToast(`Автор ${name} добавлен в базу!`, 'success');
+        window.app.showToast(`Автор ${name} сохранен!`, 'success');
     }
 }
 

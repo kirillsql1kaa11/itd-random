@@ -27,10 +27,9 @@ class App {
         }
 
         window.adminManager.init();
-        await window.adminManager.refreshAuthorsDropdown();
         await window.adminManager.refreshAuthorsList();
         await window.adminManager.refreshPostsTable();
-        window.adminManager.updateSupabaseBadge();
+        await window.adminManager.refreshSuggestedPosts();
 
         window.gameEngine.init();
 
@@ -159,10 +158,9 @@ class App {
         }
 
         if (tab === 'admin') {
-            window.adminManager.refreshAuthorsDropdown();
             window.adminManager.refreshPostsTable();
             window.adminManager.refreshAuthorsList();
-            window.adminManager.updateSupabaseBadge();
+            window.adminManager.refreshSuggestedPosts();
         } else if (tab === 'authors') {
             this.renderPublicAuthorsCatalog();
         } else if (tab === 'leaderboard') {

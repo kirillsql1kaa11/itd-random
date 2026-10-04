@@ -1,5 +1,3 @@
-
-
 class SupabaseService {
     constructor() {
         const configUrl = window.APP_CONFIG?.supabaseUrl || '';
@@ -59,14 +57,13 @@ class SupabaseService {
             await this.request('authors?select=id&limit=1');
             return true;
         } catch (e) {
-            console.warn('Supabase connection test failed:', e);
+            console.warn(e);
             return false;
         }
     }
 
     async getLeaderboard(limit = 20) {
         if (!this.isConfigured) {
-            
             const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
             return local.sort((a, b) => b.score - a.score).slice(0, limit);
         }
@@ -75,7 +72,7 @@ class SupabaseService {
             const data = await this.request(`leaderboard?select=*&order=score.desc&limit=${limit}`);
             return data;
         } catch (e) {
-            console.warn('Failed to fetch remote leaderboard, using local fallback:', e);
+            console.warn(e);
             const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
             return local.sort((a, b) => b.score - a.score).slice(0, limit);
         }
@@ -101,7 +98,7 @@ class SupabaseService {
                     body: record
                 });
             } catch (e) {
-                console.warn('Could not post score to Supabase:', e);
+                console.warn(e);
             }
         }
         return record;
@@ -117,7 +114,9 @@ class SupabaseService {
             status: 'pending'
         };
 
-        await window.quizDB.saveSetting('pending_suggestion_' + Date.now(), item);
+        const localSuggestions = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        localSuggestions.unshift({ ...item, id: 'sugg_' + Date.now(), created_at: new Date().toISOString() });
+        localStorage.setItem('itd_local_suggestions', JSON.stringify(localSuggestions));
 
         if (this.isConfigured) {
             try {
@@ -126,10 +125,73 @@ class SupabaseService {
                     body: item
                 });
             } catch (e) {
-                console.warn('Could not send suggestion to Supabase:', e);
+                console.warn(e);
             }
         }
         return true;
+    }
+
+    async getSuggestedPosts() {
+        if (this.isConfigured) {
+            try {
+                const data = await this.request('suggestions_posts?status=eq.pending&order=created_at.desc');
+                if (Array.isArray(data)) return data;
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        return local.filter(s => s.status === 'pending');
+    }
+
+    async approveSuggestedPost(suggestion, correctAuthorId) {
+        const postRecord = {
+            id: 'post_' + Date.now(),
+            correctAuthorId: correctAuthorId || suggestion.author_id,
+            postText: suggestion.post_text || '',
+            screenshot: suggestion.screenshot,
+            hint: '',
+            difficulty: 'normal',
+            tags: [],
+            createdAt: Date.now()
+        };
+
+        await this.savePost(postRecord);
+        await window.quizDB.savePost(postRecord);
+
+        if (this.isConfigured && suggestion.id && !String(suggestion.id).startsWith('sugg_')) {
+            try {
+                await this.request(`suggestions_posts?id=eq.${suggestion.id}`, {
+                    method: 'PATCH',
+                    body: { status: 'approved' }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        const updated = local.map(s => s.id === suggestion.id ? { ...s, status: 'approved' } : s);
+        localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
+
+        return postRecord;
+    }
+
+    async rejectSuggestedPost(suggestionId) {
+        if (this.isConfigured && suggestionId && !String(suggestionId).startsWith('sugg_')) {
+            try {
+                await this.request(`suggestions_posts?id=eq.${suggestionId}`, {
+                    method: 'PATCH',
+                    body: { status: 'rejected' }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+
+        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        const updated = local.map(s => s.id === suggestionId ? { ...s, status: 'rejected' } : s);
+        localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
     }
 
     async submitAuthorSuggestion({ name, handle, bio, submittedBy }) {
@@ -148,16 +210,82 @@ class SupabaseService {
                     body: item
                 });
             } catch (e) {
-                console.warn('Could not send author suggestion to Supabase:', e);
+                console.warn(e);
             }
         }
         return true;
     }
 
+    async saveAuthor(author) {
+        if (!this.isConfigured) return;
+        try {
+            await this.request('authors', {
+                method: 'POST',
+                prefer: 'resolution=merge-duplicates',
+                body: {
+                    id: author.id,
+                    name: author.name,
+                    handle: author.handle,
+                    avatar_color: author.avatarColor,
+                    avatar_text: author.avatarText,
+                    badge: author.badge || null,
+                    bio: author.bio || null,
+                    verified: Boolean(author.verified)
+                }
+            });
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+
+    async deleteAuthor(id) {
+        if (!this.isConfigured) return;
+        try {
+            await this.request(`authors?id=eq.${id}`, {
+                method: 'DELETE'
+            });
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+
+    async savePost(post) {
+        if (!this.isConfigured) return;
+        try {
+            await this.request('posts', {
+                method: 'POST',
+                prefer: 'resolution=merge-duplicates',
+                body: {
+                    id: post.id,
+                    correct_author_id: post.correctAuthorId,
+                    post_text: post.postText || '',
+                    screenshot: post.screenshot,
+                    hint: post.hint || '',
+                    difficulty: post.difficulty || 'normal',
+                    tags: post.tags || [],
+                    likes: post.likes || 0
+                }
+            });
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+
+    async deletePost(id) {
+        if (!this.isConfigured) return;
+        try {
+            await this.request(`posts?id=eq.${id}`, {
+                method: 'DELETE'
+            });
+        } catch (e) {
+            console.warn(e);
+        }
+    }
+
     async fetchRemotePosts() {
         if (!this.isConfigured) return null;
         try {
-            const data = await this.request('posts?select=*');
+            const data = await this.request('posts?select=*&order=created_at.desc');
             return data.map(p => ({
                 id: p.id,
                 correctAuthorId: p.correct_author_id,
@@ -170,7 +298,7 @@ class SupabaseService {
                 createdAt: new Date(p.created_at).getTime()
             }));
         } catch (e) {
-            console.warn('Error fetching remote posts:', e);
+            console.warn(e);
             return null;
         }
     }
@@ -190,7 +318,7 @@ class SupabaseService {
                 verified: a.verified
             }));
         } catch (e) {
-            console.warn('Error fetching remote authors:', e);
+            console.warn(e);
             return null;
         }
     }
