@@ -2019,3 +2019,211 @@ input:focus, textarea:focus, select:focus {
     color: #fff;
 }
 
+.nickname-label-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.btn-random-nick {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 128, 255, 0.1);
+    border: 1px solid rgba(0, 128, 255, 0.3);
+    color: var(--accent-blue);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-random-nick:hover {
+    background: var(--accent-blue);
+    color: #fff;
+    box-shadow: 0 0 12px var(--accent-blue-glow);
+}
+
+.admin-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.admin-stats-dashboard {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+}
+
+.admin-stat-metric-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: var(--transition);
+}
+
+.admin-stat-metric-card:hover {
+    border-color: var(--border-hover);
+    background: var(--bg-card-hover);
+}
+
+.asm-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.asm-icon {
+    display: inline-flex;
+    color: var(--accent-blue);
+}
+
+.asm-value {
+    font-size: 24px;
+    font-weight: 700;
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+    margin-top: 2px;
+}
+
+.asm-hint {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.admin-author-suggestion-card {
+    display: flex;
+    gap: 14px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.aasc-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg, #7c3aed, #ec4899);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.aasc-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.aasc-header-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 2px;
+}
+
+.aasc-name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.aasc-handle {
+    font-size: 12px;
+    color: var(--accent-blue);
+}
+
+.aasc-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.aasc-bio {
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 8px;
+}
+
+.aasc-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.asc-link-row {
+    margin: 4px 0 8px;
+}
+
+.asc-external-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--accent-blue);
+    background: rgba(0, 128, 255, 0.08);
+    border: 1px solid rgba(0, 128, 255, 0.2);
+    padding: 4px 10px;
+    border-radius: var(--radius-pill);
+    transition: var(--transition);
+}
+
+.asc-external-link:hover {
+    background: rgba(0, 128, 255, 0.18);
+    border-color: var(--accent-blue);
+}
+
+.asc-author-select {
+    width: 100%;
+    max-width: 320px;
+    font-size: 12px;
+    padding: 6px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+}
+
+.admin-security-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    margin-top: 24px;
+}
+
+.btn-danger-outline {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--accent-danger);
+    color: #f87171;
+    padding: 8px 14px;
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-danger-outline:hover {
+    background: var(--accent-danger);
+    color: #fff;
+}
+

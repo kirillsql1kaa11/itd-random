@@ -12,6 +12,7 @@ class AdminManager {
         this.bindEvents();
         this.setupPasteListener();
         this.setupAuthorSearch();
+        this.setupPasswordSettings();
     }
 
     bindEvents() {
@@ -86,13 +87,51 @@ class AdminManager {
                 this.saveNewAuthorFromModal();
             });
         }
+
+        const btnRefreshStats = document.getElementById('btn-admin-refresh-stats');
+        if (btnRefreshStats) {
+            btnRefreshStats.addEventListener('click', () => {
+                this.refreshAdminStats();
+                window.app.showToast('Статистика обновлена', 'info');
+            });
+        }
+    }
+
+    setupPasswordSettings() {
+        const formPassword = document.getElementById('form-change-admin-password');
+        if (formPassword) {
+            formPassword.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const newPassInput = document.getElementById('new-admin-password-input');
+                const val = (newPassInput?.value || '').trim();
+                if (!val) {
+                    window.app.showToast('Введите новый пароль', 'warning');
+                    return;
+                }
+                if (val.length < 3) {
+                    window.app.showToast('Пароль слишком короткий (минимум 3 символа)', 'warning');
+                    return;
+                }
+                window.supabaseService.setAdminPassword(val);
+                newPassInput.value = '';
+                window.app.showToast('Пароль администратора успешно изменен', 'success');
+            });
+        }
+
+        const btnLogout = document.getElementById('btn-admin-logout');
+        if (btnLogout) {
+            btnLogout.addEventListener('click', () => {
+                window.app.adminUnlocked = false;
+                localStorage.removeItem('itd_admin_unlocked');
+                window.app.switchTab('home');
+                window.app.showToast('Вы вышли из панели управления', 'info');
+            });
+        }
     }
 
     setupAuthorSearch() {
         const searchInput = document.getElementById('admin-post-author-search');
         const dropdown = document.getElementById('admin-author-suggestions');
-        const hiddenInput = document.getElementById('admin-post-author-id');
-        const pillContainer = document.getElementById('admin-selected-author-pill');
 
         if (!searchInput || !dropdown) return;
 
@@ -177,6 +216,30 @@ class AdminManager {
         searchInput.focus();
     }
 
+    async refreshAdminStats() {
+        const stats = await window.supabaseService.getAdminStats();
+
+        const elGames = document.getElementById('admin-stat-total-games');
+        const elPlayers = document.getElementById('admin-stat-unique-players');
+        const elTopScore = document.getElementById('admin-stat-top-score');
+        const elTopPlayer = document.getElementById('admin-stat-top-player');
+        const elPosts = document.getElementById('admin-stat-active-posts');
+        const elAuthors = document.getElementById('admin-stat-active-authors');
+        const elPendingTotal = document.getElementById('admin-stat-pending-total');
+        const elPendingDetail = document.getElementById('admin-stat-pending-detail');
+
+        if (elGames) elGames.textContent = stats.totalGames;
+        if (elPlayers) elPlayers.textContent = stats.uniquePlayers;
+        if (elTopScore) elTopScore.textContent = stats.topScore;
+        if (elTopPlayer) elTopPlayer.textContent = stats.topPlayer !== '—' ? `Лидер: ${stats.topPlayer}` : 'Пока нет лидеров';
+        if (elPosts) elPosts.textContent = stats.totalPosts;
+        if (elAuthors) elAuthors.textContent = stats.totalAuthors;
+
+        const totalPending = stats.pendingPosts + stats.pendingAuthors;
+        if (elPendingTotal) elPendingTotal.textContent = totalPending;
+        if (elPendingDetail) elPendingDetail.textContent = `${stats.pendingPosts} постов, ${stats.pendingAuthors} авторов`;
+    }
+
     async refreshSuggestedPosts() {
         const container = document.getElementById('admin-pending-suggestions-list');
         const countBadge = document.getElementById('admin-pending-sugg-count');
@@ -185,13 +248,15 @@ class AdminManager {
         container.innerHTML = `<div class="table-empty">Загрузка предложенных постов...</div>`;
 
         const suggestions = await window.supabaseService.getSuggestedPosts();
-        countBadge.textContent = `${suggestions.length} предложений`;
+        if (countBadge) countBadge.textContent = `${suggestions.length} предложений`;
 
         container.innerHTML = '';
         if (suggestions.length === 0) {
             container.innerHTML = `<div class="table-empty">Нет постов, ожидающих модерации.</div>`;
             return;
         }
+
+        const allAuthors = window.authorsManager.getAll();
 
         suggestions.forEach(item => {
             const card = document.createElement('div');
@@ -200,14 +265,32 @@ class AdminManager {
             const author = item.author_id ? window.authorsManager.getById(item.author_id) : null;
             const authorDisplayName = author ? `${author.name} (${author.handle})` : (item.author_name || 'Не указан');
 
+            let authorSelectHtml = '<select class="asc-author-select"><option value="">— Привязать к автору —</option>';
+            allAuthors.forEach(a => {
+                const isSelected = (item.author_id && item.author_id === a.id) || (item.author_name && a.name.toLowerCase() === item.author_name.toLowerCase());
+                authorSelectHtml += `<option value="${a.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(a.name)} (${escapeHtml(a.handle || '')})</option>`;
+            });
+            authorSelectHtml += '</select>';
+
             card.innerHTML = `
                 <img src="${item.screenshot}" alt="Предложенный скриншот" class="asc-thumb">
                 <div class="asc-info">
-                    <div class="asc-author-line">Автор: ${escapeHtml(authorDisplayName)}</div>
+                    <div class="asc-author-line">Автор: <strong>${escapeHtml(authorDisplayName)}</strong></div>
                     <div class="asc-meta-line">Предложил: <strong>${escapeHtml(item.submitted_by || 'Аноним')}</strong></div>
+                    ${item.post_url ? `
+                        <div class="asc-link-row">
+                            <a href="${escapeHtml(item.post_url)}" target="_blank" rel="noopener noreferrer" class="asc-external-link">
+                                <span>Ссылка на пост в ИТД</span> ${window.Icons.externalLink}
+                            </a>
+                        </div>
+                    ` : ''}
                     ${item.post_text ? `<p class="asc-comment">${escapeHtml(item.post_text)}</p>` : ''}
+                    <div style="margin-bottom: 10px;">
+                        <label style="font-size:11px; color:var(--text-muted); display:block; margin-bottom:4px;">Автор для викторины:</label>
+                        ${authorSelectHtml}
+                    </div>
                     <div class="asc-actions">
-                        <button type="button" class="btn-approve">✓ Одобрить в игру</button>
+                        <button type="button" class="btn-approve">✓ Одобрить в викторину</button>
                         <button type="button" class="btn-reject">✕ Отклонить</button>
                     </div>
                 </div>
@@ -218,23 +301,114 @@ class AdminManager {
             });
 
             card.querySelector('.btn-approve').addEventListener('click', async () => {
-                let authorId = item.author_id;
+                const selectEl = card.querySelector('.asc-author-select');
+                let authorId = selectEl?.value || item.author_id;
+
                 if (!authorId) {
-                    const fallback = window.authorsManager.getAll()[0];
-                    authorId = fallback ? fallback.id : 'unknown';
+                    if (item.author_name && item.author_name !== 'Не указан') {
+                        const newAuth = await window.supabaseService.approveSuggestedAuthor({
+                            name: item.author_name,
+                            handle: '@' + item.author_name.toLowerCase().replace(/[^a-z0-9_]/gi, ''),
+                            bio: 'Автор предложенного поста'
+                        });
+                        authorId = newAuth.id;
+                    } else {
+                        const fallback = window.authorsManager.getAll()[0];
+                        authorId = fallback ? fallback.id : 'unknown';
+                    }
                 }
 
                 await window.supabaseService.approveSuggestedPost(item, authorId);
+                card.remove();
                 window.app.showToast('Пост одобрен и добавлен в викторину!', 'success');
-                await this.refreshSuggestedPosts();
                 await this.refreshPostsTable();
+                await this.refreshAdminStats();
+
+                const remaining = container.querySelectorAll('.admin-suggestion-card').length;
+                if (countBadge) countBadge.textContent = `${remaining} предложений`;
+                if (remaining === 0) {
+                    container.innerHTML = `<div class="table-empty">Нет постов, ожидающих модерации.</div>`;
+                }
             });
 
             card.querySelector('.btn-reject').addEventListener('click', async () => {
-                if (confirm('Отклонить предложенный пост?')) {
-                    await window.supabaseService.rejectSuggestedPost(item.id);
-                    window.app.showToast('Пост отклонен', 'info');
-                    await this.refreshSuggestedPosts();
+                await window.supabaseService.rejectSuggestedPost(item.id);
+                card.remove();
+                window.app.showToast('Пост отклонен и удален из очереди', 'info');
+                await this.refreshAdminStats();
+
+                const remaining = container.querySelectorAll('.admin-suggestion-card').length;
+                if (countBadge) countBadge.textContent = `${remaining} предложений`;
+                if (remaining === 0) {
+                    container.innerHTML = `<div class="table-empty">Нет постов, ожидающих модерации.</div>`;
+                }
+            });
+
+            container.appendChild(card);
+        });
+    }
+
+    async refreshSuggestedAuthors() {
+        const container = document.getElementById('admin-pending-authors-list');
+        const countBadge = document.getElementById('admin-pending-authors-count');
+        if (!container) return;
+
+        container.innerHTML = `<div class="table-empty">Загрузка предложенных авторов...</div>`;
+
+        const suggestions = await window.supabaseService.getSuggestedAuthors();
+        if (countBadge) countBadge.textContent = `${suggestions.length} предложений`;
+
+        container.innerHTML = '';
+        if (suggestions.length === 0) {
+            container.innerHTML = `<div class="table-empty">Нет предложенных авторов, ожидающих проверки.</div>`;
+            return;
+        }
+
+        suggestions.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'admin-author-suggestion-card';
+
+            const firstChar = (item.name || '?')[0].toUpperCase();
+            card.innerHTML = `
+                <div class="aasc-avatar">${firstChar}</div>
+                <div class="aasc-info">
+                    <div class="aasc-header-row">
+                        <strong class="aasc-name">${escapeHtml(item.name)}</strong>
+                        <span class="aasc-handle">${escapeHtml(item.handle || '@' + item.name)}</span>
+                    </div>
+                    <div class="aasc-meta">Предложил: <strong>${escapeHtml(item.submitted_by || 'Аноним')}</strong></div>
+                    ${item.bio ? `<div class="aasc-bio">${escapeHtml(item.bio)}</div>` : ''}
+                    <div class="aasc-actions">
+                        <button type="button" class="btn-approve aasc-btn-approve">✓ Одобрить автора</button>
+                        <button type="button" class="btn-reject aasc-btn-reject">✕ Отклонить</button>
+                    </div>
+                </div>
+            `;
+
+            card.querySelector('.aasc-btn-approve').addEventListener('click', async () => {
+                await window.supabaseService.approveSuggestedAuthor(item);
+                card.remove();
+                window.app.showToast(`Автор ${item.name} добавлен в игру!`, 'success');
+                await this.refreshAuthorsList();
+                await this.refreshAdminStats();
+
+                const remaining = container.querySelectorAll('.admin-author-suggestion-card').length;
+                if (countBadge) countBadge.textContent = `${remaining} предложений`;
+                if (remaining === 0) {
+                    container.innerHTML = `<div class="table-empty">Нет предложенных авторов, ожидающих проверки.</div>`;
+                }
+            });
+
+            card.querySelector('.aasc-btn-reject').addEventListener('click', async () => {
+                await window.supabaseService.rejectSuggestedAuthor(item.id);
+                card.remove();
+                window.app.showToast('Предложенный автор отклонен', 'info');
+                await this.refreshAdminStats();
+
+                const remaining = container.querySelectorAll('.admin-author-suggestion-card').length;
+                if (countBadge) countBadge.textContent = `${remaining} предложений`;
+                if (remaining === 0) {
+                    container.innerHTML = `<div class="table-empty">Нет предложенных авторов, ожидающих проверки.</div>`;
                 }
             });
 
@@ -324,29 +498,24 @@ class AdminManager {
 
         canvas.addEventListener('mousemove', (e) => {
             if (!isDown) return;
-            const mode = document.querySelector('input[name="censor-tool"]:checked')?.value || 'blackout';
             const pos = getPos(e);
+            const mode = document.querySelector('input[name="censor-tool"]:checked')?.value || 'blackout';
 
             const lastState = this.maskHistory[this.maskHistory.length - 1];
             if (lastState) {
                 ctx.putImageData(lastState, 0, 0);
             }
 
-            const x = Math.min(startX, pos.x);
-            const y = Math.min(startY, pos.y);
-            const w = Math.abs(pos.x - startX);
-            const h = Math.abs(pos.y - startY);
-
             ctx.save();
             if (mode === 'blackout') {
-                ctx.fillStyle = '#0f0f12';
-                ctx.fillRect(x, y, w, h);
+                ctx.fillStyle = 'rgba(15, 15, 20, 0.85)';
+                ctx.fillRect(startX, startY, pos.x - startX, pos.y - startY);
                 ctx.strokeStyle = '#0080ff';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x, y, w, h);
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(startX, startY, pos.x - startX, pos.y - startY);
             } else if (mode === 'blur') {
-                ctx.fillStyle = 'rgba(20, 20, 25, 0.95)';
-                ctx.fillRect(x, y, w, h);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                ctx.fillRect(startX, startY, pos.x - startX, pos.y - startY);
             }
             ctx.restore();
         });
@@ -432,7 +601,8 @@ class AdminManager {
             posts = await window.quizDB.getAllPosts();
         }
 
-        document.getElementById('admin-total-posts-badge').textContent = `${posts.length} постов`;
+        const badge = document.getElementById('admin-total-posts-badge');
+        if (badge) badge.textContent = `${posts.length} постов`;
 
         tableBody.innerHTML = '';
         if (posts.length === 0) {
@@ -510,6 +680,7 @@ class AdminManager {
                 if (confirm(`Удалить автора "${a.name}" из базы?`)) {
                     await window.authorsManager.deleteAuthor(a.id);
                     await this.refreshAuthorsList();
+                    await this.refreshAdminStats();
                     window.app.showToast('Автор удален', 'info');
                 }
             });
@@ -555,6 +726,7 @@ class AdminManager {
 
         this.resetForm();
         await this.refreshPostsTable();
+        await this.refreshAdminStats();
     }
 
     editPost(post) {
@@ -589,6 +761,7 @@ class AdminManager {
             await window.quizDB.deletePost(id);
             window.app.showToast('Вопрос удален', 'info');
             await this.refreshPostsTable();
+            await this.refreshAdminStats();
         }
     }
 
@@ -626,6 +799,7 @@ class AdminManager {
                 await window.authorsManager.load();
                 await this.refreshAuthorsList();
                 await this.refreshPostsTable();
+                await this.refreshAdminStats();
                 window.app.showToast('База данных успешно импортирована!', 'success');
             } catch (err) {
                 console.error(err);
@@ -642,6 +816,7 @@ class AdminManager {
                 await window.quizDB.deletePost(p.id);
             }
             await this.refreshPostsTable();
+            await this.refreshAdminStats();
             window.app.showToast('База постов очищена', 'info');
         }
     }
@@ -673,6 +848,7 @@ class AdminManager {
         document.getElementById('form-add-author').reset();
         document.getElementById('modal-new-author').classList.add('hidden');
         await this.refreshAuthorsList();
+        await this.refreshAdminStats();
         window.app.showToast(`Автор ${name} сохранен!`, 'success');
     }
 }

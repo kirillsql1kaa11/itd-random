@@ -335,7 +335,17 @@ class GameEngine {
         document.getElementById('reveal-bio').textContent = author.bio || author.style || 'Популярный автор в ИТД';
 
         const itdLink = document.getElementById('reveal-itd-link');
-        itdLink.href = `https://xn--d1ah4a.com/`;
+        let postUrl = '';
+        if (this.currentPost.hint && this.currentPost.hint.startsWith('Оригинал: ')) {
+            postUrl = this.currentPost.hint.replace('Оригинал: ', '').trim();
+        }
+        if (postUrl) {
+            itdLink.href = postUrl;
+            itdLink.textContent = 'Открыть пост в ИТД ↗';
+        } else {
+            itdLink.href = 'https://xn--d1ah4a.com/';
+            itdLink.textContent = 'Профиль в ИТД ↗';
+        }
     }
 
     getStreakMultiplier() {

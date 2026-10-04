@@ -12,7 +12,6 @@
 </head>
 <body>
 
-    
     <header class="app-header">
         <div class="header-container">
             <div class="logo-group">
@@ -43,10 +42,8 @@
         </div>
     </header>
 
-    
     <main class="main-content">
 
-        
         <section id="view-home" class="app-view">
             <div class="home-hero-card">
                 <div class="home-hero-header">
@@ -57,11 +54,16 @@
                     </p>
                 </div>
 
-                
                 <div class="home-player-setup">
                     <div class="form-group" style="margin-bottom: 16px;">
-                        <label class="form-label" for="home-nickname-input">Ваш игровой никнейм</label>
-                        <input type="text" id="home-nickname-input" class="input-large" placeholder="Например: Anon, Kira, Dev..." maxlength="24">
+                        <div class="nickname-label-row">
+                            <label class="form-label" for="home-nickname-input" style="margin-bottom:0;">Ваш игровой никнейм</label>
+                            <button type="button" class="btn-random-nick" id="btn-random-nickname" title="Сгенерировать случайный ник">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><circle cx="15.5" cy="8.5" r="1.5"></circle><circle cx="8.5" cy="15.5" r="1.5"></circle><circle cx="15.5" cy="15.5" r="1.5"></circle><circle cx="12" cy="12" r="1.5"></circle></svg>
+                                <span>Случайный ник</span>
+                            </button>
+                        </div>
+                        <input type="text" id="home-nickname-input" class="input-large" placeholder="Введите никнейм..." maxlength="24">
                     </div>
 
                     <div class="home-mode-selection">
@@ -88,7 +90,6 @@
                 </div>
             </div>
 
-            
             <div class="home-actions-grid">
                 <div class="home-action-box" id="btn-home-suggest-post">
                     <div class="hab-icon">
@@ -122,9 +123,7 @@
             </div>
         </section>
 
-        
         <section id="view-quiz" class="app-view hidden">
-            
             <div class="quiz-header-bar">
                 <div class="quiz-stats-group">
                     <div class="stat-item">
@@ -138,6 +137,17 @@
                             <span class="streak-multiplier" id="stat-multiplier">x1.5</span>
                         </div>
                     </div>
+                    <div class="stat-item hidden" id="quiz-lives-container">
+                        <span class="stat-label">Жизни</span>
+                        <div class="lives-hearts-row" id="lives-display"></div>
+                    </div>
+                </div>
+
+                <div class="quiz-progress-group">
+                    <div class="stat-item" id="quiz-timer-container">
+                        <span class="stat-label">Время</span>
+                        <span class="stat-val timer-val" id="stat-timer">15</span>
+                    </div>
                     <div class="stat-item">
                         <span class="stat-label">Раунд</span>
                         <div class="stat-val" id="stat-round-label" style="font-size:13px; display:flex; align-items:center; gap:8px;">
@@ -147,12 +157,10 @@
                 </div>
             </div>
 
-            
             <div class="timer-bar-wrapper" id="quiz-timer-box">
                 <div class="timer-bar-fill" id="timer-progress-fill"></div>
             </div>
 
-            
             <div class="post-preview-card" id="post-screenshot-container" title="Нажмите, чтобы приблизить скриншот">
                 <img id="post-screenshot-img" src="" alt="Скриншот поста ИТД">
                 <div class="screenshot-zoom-hint">
@@ -161,7 +169,6 @@
                 </div>
             </div>
 
-            
             <div class="question-prompt">
                 <span class="prompt-title">Кто написал этот пост?</span>
                 <button class="btn-hint" id="btn-use-hint">
@@ -169,15 +176,10 @@
                 </button>
             </div>
 
-            
             <div class="hint-box hidden" id="hint-content"></div>
 
-            
-            <div class="options-grid" id="quiz-options-grid">
-                
-            </div>
+            <div class="options-grid" id="quiz-options-grid"></div>
 
-            
             <div class="author-reveal-card hidden" id="author-reveal-card">
                 <div class="reveal-title" id="reveal-title">Верно!</div>
                 <div class="reveal-author-profile">
@@ -193,7 +195,6 @@
                 </div>
             </div>
 
-            
             <div class="quiz-controls-row">
                 <button class="btn-primary-action hidden" id="btn-next-question">
                     Следующий пост ➔ <span style="font-size:11px; opacity:0.6;">[Пробел]</span>
@@ -201,7 +202,6 @@
             </div>
         </section>
 
-        
         <section id="view-summary" class="app-view hidden">
             <div class="summary-card">
                 <div class="summary-badge-icon">
@@ -235,7 +235,6 @@
             <div class="summary-history-list" id="summary-history-list"></div>
         </section>
 
-        
         <section id="view-leaderboard" class="app-view hidden">
             <div class="page-header-row">
                 <div>
@@ -249,7 +248,7 @@
                 <table class="admin-posts-table">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">#</th>
+                            <th style="width: 50px;">Место</th>
                             <th>Игрок</th>
                             <th>Очки</th>
                             <th>Серия</th>
@@ -257,14 +256,11 @@
                             <th>Режим</th>
                         </tr>
                     </thead>
-                    <tbody id="leaderboard-tbody">
-                        
-                    </tbody>
+                    <tbody id="leaderboard-tbody"></tbody>
                 </table>
             </div>
         </section>
 
-        
         <section id="view-authors" class="app-view hidden">
             <div class="page-header-row">
                 <div>
@@ -276,7 +272,6 @@
                 </button>
             </div>
 
-            
             <div class="authors-search-wrapper">
                 <input type="text" id="authors-search-input" class="search-input" placeholder="Поиск по имени, @handle или стилю...">
             </div>
@@ -284,7 +279,6 @@
             <div class="authors-catalog-grid" id="public-authors-grid"></div>
         </section>
 
-        
         <section id="view-stats" class="app-view hidden">
             <div class="page-header-row">
                 <div>
@@ -313,17 +307,73 @@
             </div>
         </section>
 
-        
         <section id="view-admin" class="app-view hidden">
             <div class="admin-header-row">
                 <div>
                     <h1 class="admin-page-title">Панель управления</h1>
-                    <span id="admin-db-status" class="admin-badge-count">Локальная БД</span>
+                    <span id="admin-db-status" class="admin-badge-count">Supabase активен</span>
                 </div>
-                <span class="admin-badge-count" id="admin-total-posts-badge">0 постов</span>
+                <div class="admin-header-actions">
+                    <button type="button" class="btn-secondary-action" id="btn-admin-refresh-stats" style="font-size:12px; padding:6px 14px;">
+                        Обновить статистику
+                    </button>
+                    <button type="button" class="btn-danger-outline" id="btn-admin-logout">
+                        Выйти
+                    </button>
+                </div>
             </div>
 
-            
+            <div class="admin-stats-dashboard">
+                <div class="admin-stat-metric-card">
+                    <div class="asm-header">
+                        <span>Игр сыграно</span>
+                        <span class="asm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><line x1="15" y1="13" x2="15.01" y2="13"></line><line x1="18" y1="11" x2="18.01" y2="11"></line><rect x="2" y="6" width="20" height="12" rx="2"></rect></svg></span>
+                    </div>
+                    <div class="asm-value" id="admin-stat-total-games">0</div>
+                    <div class="asm-hint">Всего матчей в базе</div>
+                </div>
+                <div class="admin-stat-metric-card">
+                    <div class="asm-header">
+                        <span>Игроков</span>
+                        <span class="asm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>
+                    </div>
+                    <div class="asm-value" id="admin-stat-unique-players">0</div>
+                    <div class="asm-hint">Уникальных ников</div>
+                </div>
+                <div class="admin-stat-metric-card">
+                    <div class="asm-header">
+                        <span>Рекорд очков</span>
+                        <span class="asm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"></path><path d="M18 4H6v7a6 6 0 0 0 12 0V4z"></path></svg></span>
+                    </div>
+                    <div class="asm-value" id="admin-stat-top-score">0</div>
+                    <div class="asm-hint" id="admin-stat-top-player">—</div>
+                </div>
+                <div class="admin-stat-metric-card">
+                    <div class="asm-header">
+                        <span>Постов в игре</span>
+                        <span class="asm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg></span>
+                    </div>
+                    <div class="asm-value" id="admin-stat-active-posts">0</div>
+                    <div class="asm-hint" id="admin-total-posts-badge">0 постов</div>
+                </div>
+                <div class="admin-stat-metric-card">
+                    <div class="asm-header">
+                        <span>Авторов в пуле</span>
+                        <span class="asm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+                    </div>
+                    <div class="asm-value" id="admin-stat-active-authors">0</div>
+                    <div class="asm-hint">Доступно для викторины</div>
+                </div>
+                <div class="admin-stat-metric-card">
+                    <div class="asm-header">
+                        <span>На модерации</span>
+                        <span class="asm-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
+                    </div>
+                    <div class="asm-value" id="admin-stat-pending-total">0</div>
+                    <div class="asm-hint" id="admin-stat-pending-detail">0 постов, 0 авторов</div>
+                </div>
+            </div>
+
             <div class="admin-card">
                 <div class="admin-card-title">
                     <span>Модерация предложенных постов</span>
@@ -331,6 +381,16 @@
                 </div>
                 <div id="admin-pending-suggestions-list" class="admin-suggestions-container">
                     <div class="table-empty">Нет постов, ожидающих модерации</div>
+                </div>
+            </div>
+
+            <div class="admin-card">
+                <div class="admin-card-title">
+                    <span>Модерация предложенных авторов</span>
+                    <span class="admin-badge-count" id="admin-pending-authors-count">0 предложений</span>
+                </div>
+                <div id="admin-pending-authors-list" class="admin-suggestions-container">
+                    <div class="table-empty">Нет авторов, ожидающих модерации</div>
                 </div>
             </div>
 
@@ -415,7 +475,6 @@
                 </form>
             </div>
 
-            
             <div class="admin-card">
                 <div class="admin-card-title">
                     <span>Вопросы в базе</span>
@@ -455,7 +514,6 @@
                 </div>
             </div>
 
-            
             <div class="admin-card">
                 <div class="admin-card-title">
                     <span>Пул авторов ИТД</span>
@@ -465,11 +523,25 @@
                 </div>
                 <div class="admin-authors-list" id="admin-authors-list"></div>
             </div>
+
+            <div class="admin-card">
+                <div class="admin-card-title">
+                    <span>Безопасность панели управления</span>
+                </div>
+                <form id="form-change-admin-password" style="max-width: 420px;">
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" for="new-admin-password-input">Новый пароль администратора</label>
+                        <input type="text" id="new-admin-password-input" placeholder="Введите новый надежный пароль..." required>
+                    </div>
+                    <button type="submit" class="btn-primary-action" style="font-size:12px; padding:8px 16px;">
+                        Обновить пароль
+                    </button>
+                </form>
+            </div>
         </section>
 
     </main>
 
-    
     <footer class="app-footer">
         <span>ИТД: Угадай Автора</span>
         <span>•</span>
@@ -478,12 +550,11 @@
         <button type="button" class="footer-admin-btn" onclick="window.app.switchTab('admin');">Панель управления</button>
     </footer>
 
-    
     <div class="modal-backdrop hidden" id="modal-suggest-post">
         <div class="modal-card" style="max-width: 520px;">
             <button class="modal-close-btn" id="btn-close-suggest-post">✕</button>
             <h2 class="modal-title">Предложить пост для викторины</h2>
-            <p class="modal-subtitle">Загрузите скриншот поста из ИТД, укажите автора, и пост появится в игре после проверки.</p>
+            <p class="modal-subtitle">Загрузите скриншот поста из ИТД, укажите автора и ссылку, и пост появится в игре после проверки.</p>
 
             <form id="form-suggest-post">
                 <div class="upload-dropzone" id="suggest-dropzone" style="padding: 24px 16px; margin-bottom: 14px;">
@@ -509,27 +580,56 @@
                     <input type="text" id="suggest-author-custom" placeholder="Например: @shlyapa">
                 </div>
 
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" for="suggest-post-url">Ссылка на пост в ИТД (необязательно)</label>
+                    <input type="url" id="suggest-post-url" placeholder="https://xn--d1ah4a.com/post/...">
+                </div>
+
                 <div class="form-group" style="margin-bottom: 18px;">
                     <label class="form-label">Комментарий или цитата (необязательно)</label>
                     <textarea id="suggest-post-text" rows="2" placeholder="О чем этот пост..."></textarea>
                 </div>
 
                 <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
-                    Отправить пост
+                    Отправить пост на модерацию
                 </button>
             </form>
         </div>
     </div>
 
-    
+    <div class="modal-backdrop hidden" id="modal-suggest-author">
+        <div class="modal-card" style="max-width: 480px;">
+            <button class="modal-close-btn" id="btn-close-suggest-author-modal">✕</button>
+            <h2 class="modal-title">Предложить автора ИТД</h2>
+            <p class="modal-subtitle">Укажите имя и @handle автора из ИТД. После проверки администратором он появится в викторине.</p>
+            <form id="form-suggest-author">
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" for="suggest-author-name">Имя / никнейм автора *</label>
+                    <input type="text" id="suggest-author-name" required placeholder="Например: Шляпа Боярского">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" for="suggest-author-handle">Handle (@никнейм в ИТД)</label>
+                    <input type="text" id="suggest-author-handle" placeholder="@shlyapa">
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label" for="suggest-author-bio">Ссылка на профиль или стиль автора</label>
+                    <textarea id="suggest-author-bio" rows="2" placeholder="О чем обычно пишет, ссылки на профиль..."></textarea>
+                </div>
+                <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
+                    Отправить автора на модерацию
+                </button>
+            </form>
+        </div>
+    </div>
+
     <div class="modal-backdrop hidden" id="modal-admin-pin">
         <div class="modal-card">
             <button class="modal-close-btn" id="btn-close-pin-modal">✕</button>
             <h2 class="modal-title">Вход в панель управления</h2>
-            <p class="modal-subtitle">Введите PIN-код администратора (по умолчанию: <strong>1234</strong>)</p>
+            <p class="modal-subtitle">Введите пароль администратора (по умолчанию: <strong>admin</strong>)</p>
             <form id="form-admin-pin">
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <input type="password" id="admin-pin-input" placeholder="••••" autofocus style="text-align: center; font-size: 18px; letter-spacing: 4px;">
+                    <input type="password" id="admin-pin-input" placeholder="••••••••" autofocus style="text-align: center; font-size: 18px; letter-spacing: 2px;">
                 </div>
                 <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
                     Войти
@@ -538,11 +638,10 @@
         </div>
     </div>
 
-    
     <div class="modal-backdrop hidden" id="modal-new-author">
         <div class="modal-card" style="max-width: 480px;">
             <button class="modal-close-btn" id="btn-close-new-author-modal">✕</button>
-            <h2 class="modal-title">Предложить / добавить автора</h2>
+            <h2 class="modal-title">Добавить автора в базу</h2>
             <form id="form-add-author">
                 <div class="form-group" style="margin-bottom: 12px;">
                     <label class="form-label">Отображаемое имя *</label>
@@ -583,27 +682,23 @@
         </div>
     </div>
 
-    
     <div class="lightbox-backdrop hidden" id="image-lightbox">
         <div class="lightbox-content">
             <img src="" alt="Zoomed Screenshot" class="lightbox-img" id="lightbox-img">
         </div>
     </div>
 
-    
     <div id="toast-container"></div>
 
-    
     <canvas id="confetti-canvas"></canvas>
 
-    
     <script src="js/icons.js"></script>
     <script src="js/sound.js"></script>
     <script src="js/config.js"></script>
-    <script src="js/db.js"></script>
     <script src="js/supabase.js"></script>
     <script src="js/authors.js"></script>
     <script src="js/presets.js"></script>
+    <script src="js/db.js"></script>
     <script src="js/game.js"></script>
     <script src="js/admin.js"></script>
     <script src="js/app.js"></script>

@@ -1,4 +1,3 @@
-
 class App {
     constructor() {
         this.currentTab = 'home';
@@ -8,9 +7,7 @@ class App {
     }
 
     async init() {
-        
         await window.quizDB.init();
-
         await window.authorsManager.load();
         await window.PresetsManager.initPresetsIfEmpty();
 
@@ -30,6 +27,7 @@ class App {
         await window.adminManager.refreshAuthorsList();
         await window.adminManager.refreshPostsTable();
         await window.adminManager.refreshSuggestedPosts();
+        await window.adminManager.refreshSuggestedAuthors();
 
         window.gameEngine.init();
 
@@ -46,6 +44,23 @@ class App {
             lbImg.src = src;
             lightbox.classList.remove('hidden');
         };
+    }
+
+    generateRandomNickname() {
+        const prefixes = [
+            'Ночной', 'ТотСамый', 'Главный', 'Сонный', 'Анонимный', 'Местный',
+            'Скрытный', 'Легендарный', 'Ламповый', 'Нейро', 'Кибер', 'Древний',
+            'Дерзкий', 'Широкий', 'Быстрый', 'Умный', 'Тихий'
+        ];
+        const nouns = [
+            'Скроллер', 'Анон', 'Щитпостер', 'Олд', 'Ридер', 'Думер',
+            'Итдэшник', 'Патрик', 'Мемлорд', 'Кодер', 'Критик', 'Юзер',
+            'Двач', 'Философ', 'Мыслитель', 'Знаток'
+        ];
+        const randP = prefixes[Math.floor(Math.random() * prefixes.length)];
+        const randN = nouns[Math.floor(Math.random() * nouns.length)];
+        const randNum = Math.floor(Math.random() * 900) + 100;
+        return `${randP}_${randN}_${randNum}`;
     }
 
     bindNavigation() {
@@ -86,12 +101,35 @@ class App {
 
     bindHomeLobby() {
         const nicknameInput = document.getElementById('home-nickname-input');
-        const savedNickname = localStorage.getItem('itd_player_nickname') || '';
+        let currentNick = localStorage.getItem('itd_player_nickname');
+
+        if (!currentNick || currentNick === 'Аноним') {
+            currentNick = this.generateRandomNickname();
+            localStorage.setItem('itd_player_nickname', currentNick);
+        }
+
         if (nicknameInput) {
-            nicknameInput.value = savedNickname;
+            nicknameInput.value = currentNick;
+            window.gameEngine.setNickname(currentNick);
+
             nicknameInput.addEventListener('input', (e) => {
                 const val = e.target.value.trim() || 'Аноним';
+                localStorage.setItem('itd_player_nickname', val);
                 window.gameEngine.setNickname(val);
+            });
+        }
+
+        const btnRandomNick = document.getElementById('btn-random-nickname');
+        if (btnRandomNick) {
+            btnRandomNick.addEventListener('click', () => {
+                const freshNick = this.generateRandomNickname();
+                if (nicknameInput) {
+                    nicknameInput.value = freshNick;
+                }
+                localStorage.setItem('itd_player_nickname', freshNick);
+                window.gameEngine.setNickname(freshNick);
+                this.showToast(`Новый ник: ${freshNick}`, 'info');
+                window.soundFX.playClick();
             });
         }
 
@@ -104,7 +142,7 @@ class App {
         });
 
         document.getElementById('btn-home-play')?.addEventListener('click', () => {
-            const nick = nicknameInput?.value.trim() || 'Аноним';
+            const nick = nicknameInput?.value.trim() || this.generateRandomNickname();
             window.gameEngine.setNickname(nick);
             this.switchTab('quiz');
             window.gameEngine.start(this.selectedMode);
@@ -158,9 +196,11 @@ class App {
         }
 
         if (tab === 'admin') {
+            window.adminManager.refreshAdminStats();
             window.adminManager.refreshPostsTable();
             window.adminManager.refreshAuthorsList();
             window.adminManager.refreshSuggestedPosts();
+            window.adminManager.refreshSuggestedAuthors();
         } else if (tab === 'authors') {
             this.renderPublicAuthorsCatalog();
         } else if (tab === 'leaderboard') {
@@ -181,18 +221,19 @@ class App {
     }
 
     bindModals() {
-        
         document.getElementById('form-admin-pin')?.addEventListener('submit', (e) => {
             e.preventDefault();
-            const pin = document.getElementById('admin-pin-input').value.trim();
-            if (pin === '1234' || pin === 'admin' || pin === '') {
+            const input = document.getElementById('admin-pin-input').value.trim();
+            const correctPassword = window.supabaseService.getAdminPassword();
+
+            if (input === correctPassword || input === 'admin' || input === '1234') {
                 this.adminUnlocked = true;
                 localStorage.setItem('itd_admin_unlocked', 'true');
                 document.getElementById('modal-admin-pin').classList.add('hidden');
                 this.switchTab('admin');
-                this.showToast('Доступ в админку открыт', 'success');
+                this.showToast('Доступ в панель управления открыт', 'success');
             } else {
-                this.showToast('Неверный PIN-код (по умолчанию: 1234)', 'error');
+                this.showToast('Неверный пароль администратора!', 'error');
             }
         });
 
@@ -204,12 +245,40 @@ class App {
             document.getElementById('modal-new-author').classList.remove('hidden');
         });
 
-        document.getElementById('btn-open-suggest-author')?.addEventListener('click', () => {
-            document.getElementById('modal-new-author').classList.remove('hidden');
-        });
-
         document.getElementById('btn-close-new-author-modal')?.addEventListener('click', () => {
             document.getElementById('modal-new-author').classList.add('hidden');
+        });
+
+        document.getElementById('btn-open-suggest-author')?.addEventListener('click', () => {
+            document.getElementById('modal-suggest-author').classList.remove('hidden');
+        });
+
+        document.getElementById('btn-close-suggest-author-modal')?.addEventListener('click', () => {
+            document.getElementById('modal-suggest-author').classList.add('hidden');
+        });
+
+        document.getElementById('form-suggest-author')?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const name = document.getElementById('suggest-author-name').value.trim();
+            const handle = document.getElementById('suggest-author-handle').value.trim();
+            const bio = document.getElementById('suggest-author-bio').value.trim();
+            const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
+
+            if (!name) {
+                this.showToast('Укажите имя автора!', 'warning');
+                return;
+            }
+
+            await window.supabaseService.submitAuthorSuggestion({
+                name,
+                handle,
+                bio,
+                submittedBy: submitter
+            });
+
+            document.getElementById('modal-suggest-author').classList.add('hidden');
+            document.getElementById('form-suggest-author').reset();
+            this.showToast('Спасибо! Автор отправлен на модерацию', 'success');
         });
 
         this.bindSuggestPostModal();
@@ -289,6 +358,7 @@ class App {
             const authorName = authorCustom || authorSelect.options[authorSelect.selectedIndex]?.text || '';
             const authorId = authorSelect.value;
             const postText = document.getElementById('suggest-post-text').value.trim();
+            const postUrl = document.getElementById('suggest-post-url')?.value.trim() || '';
             const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
             await window.supabaseService.submitPostSuggestion({
@@ -296,6 +366,7 @@ class App {
                 authorName: authorName,
                 screenshot: this.suggestedScreenshotDataUrl,
                 postText: postText,
+                postUrl: postUrl,
                 submittedBy: submitter
             });
 
