@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ИТД: Угадай Автора — Викторина по постам</title>
+    <meta name="description" content="Угадай автора поста по скриншоту из соцсети ИТД. Минималистичная игра с темной темой, рейтингом игроков и админкой.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Unbounded:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <!-- Header Navbar -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="logo-group">
+                <a href="#" class="logo-badge" onclick="window.app.switchTab('home'); return false;">
+                    <span class="logo-dot"></span>
+                    ИТД <span style="font-weight:400; opacity:0.6;">· КТО АВТОР?</span>
+                </a>
+            </div>
+
+            <nav class="nav-tabs" aria-label="Основная навигация">
+                <button class="nav-tab-btn active" data-tab="home" id="nav-btn-home">
+                    Главная
+                </button>
+                <button class="nav-tab-btn" data-tab="leaderboard" id="nav-btn-leaderboard">
+                    Рейтинг
+                </button>
+                <button class="nav-tab-btn" data-tab="authors" id="nav-btn-authors">
+                    Авторы
+                </button>
+                <button class="nav-tab-btn" data-tab="stats" id="nav-btn-stats">
+                    Статистика
+                </button>
+            </nav>
+
+            <div class="header-controls">
+                <button class="icon-btn" id="btn-toggle-sound" title="Звук"></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+        <!-- 0. HOME / LOBBY SCREEN -->
+        <section id="view-home" class="app-view">
+            <div class="home-hero-card">
+                <div class="home-hero-header">
+                    <span class="home-hero-tag">Викторина по соцсети ИТД</span>
+                    <h1 class="home-hero-title">Угадай, кто написал пост</h1>
+                    <p class="home-hero-subtitle">
+                        Определяй авторов по скриншотам постов, стилю текста и шуткам. Соревнуйся в рейтинге лучших скроллеров ИТД.
+                    </p>
+                </div>
+
+                <!-- Player Nickname & Mode Setup -->
+                <div class="home-player-setup">
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label class="form-label" for="home-nickname-input">Ваш игровой никнейм</label>
+                        <input type="text" id="home-nickname-input" class="input-large" placeholder="Например: Anon, Kira, Dev..." maxlength="24">
+                    </div>
+
+                    <div class="home-mode-selection">
+                        <span class="form-label" style="display:block; margin-bottom: 8px;">Выберите режим:</span>
+                        <div class="home-mode-pills">
+                            <button type="button" class="btn-home-mode active" data-mode="blitz">
+                                <strong>Блиц 10</strong>
+                                <small>10 постов на очки</small>
+                            </button>
+                            <button type="button" class="btn-home-mode" data-mode="survival">
+                                <strong>Выживание</strong>
+                                <small>3 жизни, до первой ошибки</small>
+                            </button>
+                            <button type="button" class="btn-home-mode" data-mode="practice">
+                                <strong>Свободный</strong>
+                                <small>Без таймера и жизней</small>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn-hero-play" id="btn-home-play">
+                        Начать игру
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quick Action Grid -->
+            <div class="home-actions-grid">
+                <div class="home-action-box" id="btn-home-suggest-post">
+                    <div class="hab-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </div>
+                    <div class="hab-info">
+                        <strong>Предложить пост</strong>
+                        <p>Загрузите скриншот любимого поста для викторины</p>
+                    </div>
+                </div>
+
+                <div class="home-action-box" id="btn-home-browse-authors">
+                    <div class="hab-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    </div>
+                    <div class="hab-info">
+                        <strong>Авторы ИТД</strong>
+                        <p>Поиск авторов и предложение новых участников</p>
+                    </div>
+                </div>
+
+                <div class="home-action-box" id="btn-home-leaderboard">
+                    <div class="hab-icon">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+                    </div>
+                    <div class="hab-info">
+                        <strong>Рейтинг игроков</strong>
+                        <p>Таблица рекордов и лучших серий ответов</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 1. QUIZ VIEW -->
+        <section id="view-quiz" class="app-view hidden">
+            <!-- Top Status Bar -->
+            <div class="quiz-header-bar">
+                <div class="quiz-stats-group">
+                    <div class="stat-item">
+                        <span class="stat-label">Очки</span>
+                        <span class="stat-val" id="stat-score">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Серия</span>
+                        <div style="display:flex; align-items:center;">
+                            <span class="stat-val" id="stat-streak">0</span>
+                            <span class="streak-multiplier" id="stat-multiplier">x1.5</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Раунд</span>
+                        <div class="stat-val" id="stat-round-label" style="font-size:13px; display:flex; align-items:center; gap:8px;">
+                            Пост 1 / 10
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timer Bar -->
+            <div class="timer-bar-wrapper" id="quiz-timer-box">
+                <div class="timer-bar-fill" id="timer-progress-fill"></div>
+            </div>
+
+            <!-- Post Screenshot Preview Card -->
+            <div class="post-preview-card" id="post-screenshot-container" title="Нажмите, чтобы приблизить скриншот">
+                <img id="post-screenshot-img" src="" alt="Скриншот поста ИТД">
+                <div class="screenshot-zoom-hint">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <span>Зум [Z]</span>
+                </div>
+            </div>
+
+            <!-- Prompt & Hint Row -->
+            <div class="question-prompt">
+                <span class="prompt-title">Кто написал этот пост?</span>
+                <button class="btn-hint" id="btn-use-hint">
+                    Подсказка [H]
+                </button>
+            </div>
+
+            <!-- Hint Box (Hidden by default) -->
+            <div class="hint-box hidden" id="hint-content"></div>
+
+            <!-- 4 Options Grid -->
+            <div class="options-grid" id="quiz-options-grid">
+                <!-- Dynamically populated buttons -->
+            </div>
+
+            <!-- Author Reveal Profile (Appears after answer) -->
+            <div class="author-reveal-card hidden" id="author-reveal-card">
+                <div class="reveal-title" id="reveal-title">Верно!</div>
+                <div class="reveal-author-profile">
+                    <div class="reveal-avatar" id="reveal-avatar">А</div>
+                    <div class="reveal-info">
+                        <div class="reveal-name" id="reveal-name">Автор</div>
+                        <div class="reveal-handle" id="reveal-handle">@handle</div>
+                        <div class="reveal-bio" id="reveal-bio">Биография и стиль автора в ИТД</div>
+                        <a href="https://xn--d1ah4a.com/" target="_blank" class="reveal-itd-link" id="reveal-itd-link">
+                            Профиль в ИТД ↗
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls (Next Question Button) -->
+            <div class="quiz-controls-row">
+                <button class="btn-primary-action hidden" id="btn-next-question">
+                    Следующий пост ➔ <span style="font-size:11px; opacity:0.6;">[Пробел]</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- 2. SUMMARY / GAME OVER VIEW -->
+        <section id="view-summary" class="app-view hidden">
+            <div class="summary-card">
+                <div class="summary-badge-icon">
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"></circle><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline></svg>
+                </div>
+                <h2 class="summary-title">Раунд завершен</h2>
+                <div class="summary-rank" id="sum-rank">Легенда ИТД</div>
+
+                <div class="summary-stats-grid">
+                    <div class="summary-stat-box">
+                        <div class="val" id="sum-score">0</div>
+                        <div class="lbl">Очков набрано</div>
+                    </div>
+                    <div class="summary-stat-box">
+                        <div class="val" id="sum-max-streak">0</div>
+                        <div class="lbl">Макс. серия</div>
+                    </div>
+                    <div class="summary-stat-box">
+                        <div class="val" id="sum-accuracy">0%</div>
+                        <div class="lbl">Точность</div>
+                    </div>
+                </div>
+
+                <div class="summary-actions-row">
+                    <button class="btn-primary-action" id="btn-play-again">Сыграть еще раз</button>
+                    <button class="btn-secondary-action" id="btn-share-results">Поделиться результатом</button>
+                </div>
+            </div>
+
+            <h3 class="summary-history-title">Разбор постов раунда:</h3>
+            <div class="summary-history-list" id="summary-history-list"></div>
+        </section>
+
+        <!-- 3. LEADERBOARD VIEW -->
+        <section id="view-leaderboard" class="app-view hidden">
+            <div class="page-header-row">
+                <div>
+                    <h1 class="page-main-title">Рейтинг игроков</h1>
+                    <p class="page-sub-title">Таблица рекордов по набранным очкам и сериям</p>
+                </div>
+                <button class="btn-secondary-action" onclick="window.app.renderLeaderboardView()">Обновить</button>
+            </div>
+
+            <div class="table-responsive" style="margin-top: 16px;">
+                <table class="admin-posts-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;">#</th>
+                            <th>Игрок</th>
+                            <th>Очки</th>
+                            <th>Серия</th>
+                            <th>Точность</th>
+                            <th>Режим</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-tbody">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- 4. AUTHORS CATALOG VIEW -->
+        <section id="view-authors" class="app-view hidden">
+            <div class="page-header-row">
+                <div>
+                    <h1 class="page-main-title">Авторы ИТД</h1>
+                    <p class="page-sub-title">Популярные авторы ленты и их индивидуальный стиль</p>
+                </div>
+                <button class="btn-primary-action" id="btn-open-suggest-author" style="font-size:12px; padding:8px 16px;">
+                    + Предложить автора
+                </button>
+            </div>
+
+            <!-- Live Search Bar -->
+            <div class="authors-search-wrapper">
+                <input type="text" id="authors-search-input" class="search-input" placeholder="Поиск по имени, @handle или стилю...">
+            </div>
+
+            <div class="authors-catalog-grid" id="public-authors-grid"></div>
+        </section>
+
+        <!-- 5. STATS VIEW -->
+        <section id="view-stats" class="app-view hidden">
+            <div class="page-header-row">
+                <div>
+                    <h1 class="page-main-title">Ваша статистика</h1>
+                    <p class="page-sub-title">Локальные показатели на этом устройстве</p>
+                </div>
+            </div>
+
+            <div class="summary-stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-top: 16px;">
+                <div class="summary-stat-box">
+                    <div class="val" id="stat-display-games">0</div>
+                    <div class="lbl">Игр сыграно</div>
+                </div>
+                <div class="summary-stat-box">
+                    <div class="val" id="stat-display-score">0</div>
+                    <div class="lbl">Всего очков</div>
+                </div>
+                <div class="summary-stat-box">
+                    <div class="val" id="stat-display-streak">0</div>
+                    <div class="lbl">Рекорд серии</div>
+                </div>
+                <div class="summary-stat-box">
+                    <div class="val" id="stat-display-accuracy">0%</div>
+                    <div class="lbl">Общая точность</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. ADMIN PANEL VIEW (Accessible only from footer link) -->
+        <section id="view-admin" class="app-view hidden">
+            <div class="admin-header-row">
+                <div>
+                    <h1 class="admin-page-title">Панель управления</h1>
+                    <span id="admin-db-status" class="admin-badge-count">Локальная БД</span>
+                </div>
+                <span class="admin-badge-count" id="admin-total-posts-badge">0 постов</span>
+            </div>
+
+            <!-- Supabase Cloud Connection Card -->
+            <div class="admin-card">
+                <h2 class="admin-card-title">Подключение базы данных (Supabase)</h2>
+                <p style="font-size:12px; color:var(--text-muted); margin-bottom: 14px;">
+                    Вы можете подключить бесплатный проект Supabase, чтобы рейтинг и посты были едиными для всех пользователей в интернете.
+                </p>
+                <form id="form-admin-supabase">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label class="form-label">Supabase Project URL</label>
+                            <input type="url" id="input-admin-sb-url" placeholder="https://xyzcompany.supabase.co">
+                        </div>
+                        <div class="form-group col-span-2">
+                            <label class="form-label">Supabase Anon Public API Key</label>
+                            <input type="password" id="input-admin-sb-key" placeholder="eyJh...">
+                        </div>
+                    </div>
+                    <div class="form-actions-row" style="margin-top: 14px;">
+                        <button type="button" class="btn-secondary-action" id="btn-clear-supabase" style="font-size:12px;">Сбросить в офлайн</button>
+                        <button type="submit" class="btn-primary-action" style="font-size:12px; padding:10px 20px;">Сохранить подключение</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Post Upload & Edit Card -->
+            <div class="admin-card">
+                <h2 class="admin-card-title" id="admin-form-title">Загрузка скриншота поста</h2>
+
+                <div class="upload-dropzone" id="admin-dropzone">
+                    <div class="upload-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </div>
+                    <div class="upload-main-text">Нажмите для выбора файла или перетащите скриншот</div>
+                    <div class="upload-sub-text">PNG, JPG, WebP</div>
+                    <div class="clipboard-badge">Вставка через Ctrl + V из буфера обмена</div>
+                </div>
+                <input type="file" id="admin-file-input" accept="image/*" class="hidden">
+
+                <!-- Censor / Redact Canvas -->
+                <div class="censor-preview-wrapper hidden" id="admin-preview-container">
+                    <div class="censor-toolbar">
+                        <div class="censor-tools-group">
+                            <span style="font-weight:600; color:var(--text-primary); font-size:12px;">Инструмент:</span>
+                            <label class="censor-tool-label">
+                                <input type="radio" name="censor-tool" value="blackout" checked>
+                                <span>Замазать ник (плашка)</span>
+                            </label>
+                            <label class="censor-tool-label">
+                                <input type="radio" name="censor-tool" value="blur">
+                                <span>Размытие</span>
+                            </label>
+                        </div>
+                        <div class="censor-actions-group">
+                            <button type="button" class="btn-small-tool" id="btn-undo-censor">Отменить</button>
+                            <button type="button" class="btn-small-tool" id="btn-change-screenshot">Заменить картинку</button>
+                        </div>
+                    </div>
+
+                    <div class="canvas-container" title="Выделите область с ником автора, чтобы скрыть его">
+                        <canvas id="censor-canvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Post Details Form -->
+                <form id="admin-post-form">
+                    <div class="form-grid">
+                        <div class="form-group col-span-2">
+                            <label class="form-label" for="admin-author-select">Правильный автор поста *</label>
+                            <select id="admin-author-select" required>
+                                <option value="" disabled selected>— Загрузка авторов... —</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group col-span-2 hidden" id="admin-new-author-fields">
+                            <div class="new-author-box">
+                                <div style="font-weight:700; font-size:13px; margin-bottom:10px; color:var(--accent-blue);">
+                                    Новый автор:
+                                </div>
+                                <div class="form-grid">
+                                    <div class="form-group">
+                                        <label class="form-label">Никнейм *</label>
+                                        <input type="text" id="admin-new-author-name" placeholder="Например: Кот в терминале">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Handle (@ник)</label>
+                                        <input type="text" id="admin-new-author-handle" placeholder="@cat_root">
+                                    </div>
+                                    <div class="form-group col-span-2">
+                                        <label class="form-label">Описание / стиль постов</label>
+                                        <input type="text" id="admin-new-author-bio" placeholder="Пишет про ночные релизы и баги">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group col-span-2">
+                            <label class="form-label" for="admin-post-text">Текст поста (необязательно, для поиска)</label>
+                            <textarea id="admin-post-text" rows="2" placeholder="Краткое содержание или цитата из поста..."></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="admin-post-hint">Подсказка для игроков</label>
+                            <input type="text" id="admin-post-hint" placeholder="Например: Автор часто пишет про деплой в пятницу">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="admin-post-tags">Теги (через запятую)</label>
+                            <input type="text" id="admin-post-tags" placeholder="#итд, #щитпост, #жиза">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="admin-post-diff">Сложность вопроса</label>
+                            <select id="admin-post-diff">
+                                <option value="easy">Легкая (Узнаваемый стиль)</option>
+                                <option value="normal" selected>Средняя (Для знатоков)</option>
+                                <option value="hard">Хардкор (Редкий пост)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-actions-row">
+                        <button type="button" class="btn-secondary-action" id="btn-admin-reset-form">Очистить</button>
+                        <button type="submit" class="btn-primary-action" id="btn-admin-submit">Добавить в викторину</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Existing Posts Table Card -->
+            <div class="admin-card">
+                <div class="admin-card-title">
+                    <span>Вопросы в базе</span>
+                    <button class="btn-secondary-action" id="btn-reset-presets" style="font-size:12px; padding:6px 14px;">
+                        Восстановить стартовый пак
+                    </button>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="admin-posts-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Скриншот</th>
+                                <th>Автор</th>
+                                <th>Подсказка</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-posts-tbody"></tbody>
+                    </table>
+                </div>
+
+                <div class="admin-backup-bar">
+                    <div style="font-size:13px; color:var(--text-secondary);">
+                        Резервная копия (скриншоты и посты):
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn-secondary-action" id="btn-export-backup" style="font-size:12px; padding:6px 14px;">
+                            Экспорт JSON
+                        </button>
+                        <label class="btn-secondary-action" style="font-size:12px; padding:6px 14px; cursor:pointer;">
+                            Импорт JSON
+                            <input type="file" id="input-import-backup" accept=".json" class="hidden">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Authors Pool Card -->
+            <div class="admin-card">
+                <div class="admin-card-title">
+                    <span>Пул авторов ИТД</span>
+                    <button class="btn-primary-action" id="btn-open-new-author-modal" style="font-size:12px; padding:6px 16px;">
+                        + Добавить автора
+                    </button>
+                </div>
+                <div class="admin-authors-list" id="admin-authors-list"></div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+        <span>ИТД: Угадай Автора</span>
+        <span>•</span>
+        <a href="https://xn--d1ah4a.com/" target="_blank" class="footer-link">Оригинальный сайт итд.com ↗</a>
+        <span>•</span>
+        <button type="button" class="footer-admin-btn" onclick="window.app.switchTab('admin');">Панель управления</button>
+    </footer>
+
+    <!-- MODAL: Suggest Post (Предложить пост) -->
+    <div class="modal-backdrop hidden" id="modal-suggest-post">
+        <div class="modal-card" style="max-width: 520px;">
+            <button class="modal-close-btn" id="btn-close-suggest-post">✕</button>
+            <h2 class="modal-title">Предложить пост для викторины</h2>
+            <p class="modal-subtitle">Загрузите скриншот поста из ИТД, укажите автора, и пост появится в игре после проверки.</p>
+
+            <form id="form-suggest-post">
+                <div class="upload-dropzone" id="suggest-dropzone" style="padding: 24px 16px; margin-bottom: 14px;">
+                    <div class="upload-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                    </div>
+                    <div class="upload-main-text">Перетащите скриншот или нажмите для выбора</div>
+                    <div class="clipboard-badge">Или просто нажмите Ctrl + V</div>
+                </div>
+                <input type="file" id="suggest-file-input" accept="image/*" class="hidden">
+
+                <div class="hidden" id="suggest-preview-container" style="margin-bottom: 14px; text-align: center;">
+                    <img id="suggest-preview-img" src="" alt="Скриншот" style="max-height: 180px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border-subtle);">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Автор поста (из списка)</label>
+                    <select id="suggest-author-select"></select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Либо укажите имя / @handle автора вручную</label>
+                    <input type="text" id="suggest-author-custom" placeholder="Например: @shlyapa">
+                </div>
+
+                <div class="form-group" style="margin-bottom: 18px;">
+                    <label class="form-label">Комментарий или цитата (необязательно)</label>
+                    <textarea id="suggest-post-text" rows="2" placeholder="О чем этот пост..."></textarea>
+                </div>
+
+                <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
+                    Отправить пост
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Admin PIN Protection -->
+    <div class="modal-backdrop hidden" id="modal-admin-pin">
+        <div class="modal-card">
+            <button class="modal-close-btn" id="btn-close-pin-modal">✕</button>
+            <h2 class="modal-title">Вход в панель управления</h2>
+            <p class="modal-subtitle">Введите PIN-код администратора (по умолчанию: <strong>1234</strong>)</p>
+            <form id="form-admin-pin">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <input type="password" id="admin-pin-input" placeholder="••••" autofocus style="text-align: center; font-size: 18px; letter-spacing: 4px;">
+                </div>
+                <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
+                    Войти
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Add New Author -->
+    <div class="modal-backdrop hidden" id="modal-new-author">
+        <div class="modal-card" style="max-width: 480px;">
+            <button class="modal-close-btn" id="btn-close-new-author-modal">✕</button>
+            <h2 class="modal-title">Предложить / добавить автора</h2>
+            <form id="form-add-author">
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Отображаемое имя *</label>
+                    <input type="text" id="modal-author-name" required placeholder="Например: Шляпа Боярского">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Handle (@никнейм)</label>
+                    <input type="text" id="modal-author-handle" placeholder="@shlyapa">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Бейдж / титул</label>
+                    <input type="text" id="modal-author-badge" placeholder="Топ-автор, Dev, Основатель...">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label">Цвет аватара</label>
+                    <select id="modal-author-color">
+                        <option value="linear-gradient(135deg, #0288d1, #26c6da)">Голубой неон</option>
+                        <option value="linear-gradient(135deg, #7c3aed, #ec4899)">Фиолетово-розовый</option>
+                        <option value="linear-gradient(135deg, #ef4444, #f97316)">Огненный</option>
+                        <option value="linear-gradient(135deg, #10b981, #06b6d4)">Изумрудный</option>
+                        <option value="linear-gradient(135deg, #f59e0b, #ef4444)">Янтарный</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label class="form-label">Стиль / био автора</label>
+                    <textarea id="modal-author-bio" rows="2" placeholder="О чем обычно пишет этот автор..."></textarea>
+                </div>
+                <div class="form-group" style="margin-bottom: 20px; flex-direction: row; align-items: center; gap: 8px;">
+                    <input type="checkbox" id="modal-author-verified" checked style="width: 16px; height: 16px;">
+                    <label for="modal-author-verified" style="font-size: 13px; color: var(--text-secondary); cursor: pointer;">
+                        Галочка верификации
+                    </label>
+                </div>
+                <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
+                    Сохранить автора
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: Lightbox for Screenshot Zoom -->
+    <div class="lightbox-backdrop hidden" id="image-lightbox">
+        <div class="lightbox-content">
+            <img src="" alt="Zoomed Screenshot" class="lightbox-img" id="lightbox-img">
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
+    <!-- Confetti Canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+    <!-- Application Scripts -->
+    <script src="js/icons.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/db.js"></script>
+    <script src="js/supabase.js"></script>
+    <script src="js/authors.js"></script>
+    <script src="js/presets.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/admin.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
