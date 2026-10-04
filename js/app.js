@@ -299,7 +299,11 @@ class App {
         });
 
         document.getElementById('btn-open-new-author-modal')?.addEventListener('click', () => {
-            document.getElementById('modal-new-author')?.classList.remove('hidden');
+            if (window.adminManager?.openCreateAuthorModal) {
+                window.adminManager.openCreateAuthorModal();
+            } else {
+                document.getElementById('modal-new-author')?.classList.remove('hidden');
+            }
         });
 
         document.getElementById('btn-close-new-author-modal')?.addEventListener('click', () => {
@@ -517,6 +521,16 @@ class App {
         authors.forEach(a => {
             const card = document.createElement('div');
             card.className = 'author-card-public';
+            const rawNick = (a.handle || a.id || '').trim();
+            let profileUrl = 'https://xn--d1ah4a.com/';
+            if (rawNick.startsWith('http://') || rawNick.startsWith('https://')) {
+                profileUrl = rawNick;
+            } else if (rawNick) {
+                const cleanNick = rawNick.replace(/^@+/, '');
+                if (cleanNick) {
+                    profileUrl = `https://xn--d1ah4a.com/@${encodeURIComponent(cleanNick)}`;
+                }
+            }
             card.innerHTML = `
                 <div class="acp-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name ? a.name[0] : '?')}</div>
                 <div class="acp-header">
@@ -526,7 +540,7 @@ class App {
                 ${a.badge ? `<div class="acp-badge-tag">${window.escapeHtml(a.badge)}</div>` : ''}
                 <div class="acp-bio">${window.escapeHtml(a.bio || a.style || 'Популярный автор в ИТД')}</div>
                 <div class="acp-footer">
-                    <a href="https://xn--d1ah4a.com/" target="_blank" class="acp-link">Профиль в ИТД ↗</a>
+                    <a href="${profileUrl}" target="_blank" class="acp-link">Профиль в ИТД ↗</a>
                 </div>
             `;
             grid.appendChild(card);

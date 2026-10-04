@@ -1183,7 +1183,14 @@ input:focus, textarea:focus, select:focus {
     line-height: 1.3;
 }
 
-.btn-del-author {
+.aai-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-del-author,
+.btn-edit-author {
     color: var(--text-muted);
     font-size: 14px;
     padding: 4px;
@@ -1193,6 +1200,10 @@ input:focus, textarea:focus, select:focus {
 
 .btn-del-author:hover {
     color: var(--accent-danger);
+}
+
+.btn-edit-author:hover {
+    color: var(--accent-primary);
 }
 
 

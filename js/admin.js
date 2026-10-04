@@ -683,8 +683,15 @@ class AdminManager {
                     <span class="aai-handle">${escapeHtml(a.handle || '@' + a.id)}</span>
                     <p class="aai-bio">${escapeHtml(a.bio || a.style || '')}</p>
                 </div>
-                <button class="btn-del-author" title="Удалить автора">${window.Icons.cross}</button>
+                <div class="aai-actions">
+                    <button type="button" class="btn-edit-author" title="Редактировать автора">${window.Icons.edit}</button>
+                    <button type="button" class="btn-del-author" title="Удалить автора">${window.Icons.cross}</button>
+                </div>
             `;
+
+            card.querySelector('.btn-edit-author').addEventListener('click', () => {
+                this.openEditAuthorModal(a);
+            });
 
             card.querySelector('.btn-del-author').addEventListener('click', async () => {
                 if (confirm(`Удалить автора "${a.name}" из базы?`)) {
@@ -831,7 +838,58 @@ class AdminManager {
         }
     }
 
+    openCreateAuthorModal() {
+        document.getElementById('form-add-author')?.reset();
+        const editIdInput = document.getElementById('modal-author-edit-id');
+        if (editIdInput) editIdInput.value = '';
+        const title = document.getElementById('modal-author-title');
+        if (title) title.textContent = 'Добавить автора в базу';
+        const submitBtn = document.getElementById('btn-save-author-modal');
+        if (submitBtn) submitBtn.textContent = 'Сохранить автора';
+        const verified = document.getElementById('modal-author-verified');
+        if (verified) verified.checked = true;
+        document.getElementById('modal-new-author')?.classList.remove('hidden');
+        document.getElementById('modal-author-name')?.focus();
+    }
+
+    openEditAuthorModal(author) {
+        if (!author) return;
+        const form = document.getElementById('form-add-author');
+        if (form) form.reset();
+
+        const editIdInput = document.getElementById('modal-author-edit-id');
+        if (editIdInput) editIdInput.value = author.id || '';
+
+        const title = document.getElementById('modal-author-title');
+        if (title) title.textContent = 'Редактировать автора';
+
+        const submitBtn = document.getElementById('btn-save-author-modal');
+        if (submitBtn) submitBtn.textContent = 'Сохранить изменения';
+
+        const nameInput = document.getElementById('modal-author-name');
+        if (nameInput) nameInput.value = author.name || '';
+
+        const handleInput = document.getElementById('modal-author-handle');
+        if (handleInput) handleInput.value = author.handle || '';
+
+        const badgeInput = document.getElementById('modal-author-badge');
+        if (badgeInput) badgeInput.value = author.badge || '';
+
+        const colorSelect = document.getElementById('modal-author-color');
+        if (colorSelect && author.avatarColor) colorSelect.value = author.avatarColor;
+
+        const bioInput = document.getElementById('modal-author-bio');
+        if (bioInput) bioInput.value = author.bio || author.style || '';
+
+        const verifiedCheck = document.getElementById('modal-author-verified');
+        if (verifiedCheck) verifiedCheck.checked = Boolean(author.verified);
+
+        document.getElementById('modal-new-author')?.classList.remove('hidden');
+        nameInput?.focus();
+    }
+
     async saveNewAuthorFromModal() {
+        const editId = document.getElementById('modal-author-edit-id')?.value.trim();
         const name = document.getElementById('modal-author-name').value.trim();
         const handle = document.getElementById('modal-author-handle').value.trim();
         const bio = document.getElementById('modal-author-bio').value.trim();
@@ -843,7 +901,7 @@ class AdminManager {
             return;
         }
 
-        const id = (handle ? handle.replace('@', '') : name).toLowerCase().replace(/[^a-z0-9а-яё_]/gi, '_') + '_' + Date.now();
+        const id = editId || (handle ? handle.replace('@', '') : name).toLowerCase().replace(/[^a-z0-9а-яё_]/gi, '_') + '_' + Date.now();
 
         await window.authorsManager.addAuthor({
             id,
@@ -852,14 +910,18 @@ class AdminManager {
             bio,
             badge,
             avatarColor: color,
-            verified: document.getElementById('modal-author-verified').checked
+            avatarText: name ? name[0].toUpperCase() : '?',
+            verified: Boolean(document.getElementById('modal-author-verified')?.checked)
         });
 
-        document.getElementById('form-add-author').reset();
-        document.getElementById('modal-new-author').classList.add('hidden');
+        document.getElementById('form-add-author')?.reset();
+        const editIdInput = document.getElementById('modal-author-edit-id');
+        if (editIdInput) editIdInput.value = '';
+        document.getElementById('modal-new-author')?.classList.add('hidden');
         await this.refreshAuthorsList();
+        await this.refreshPostsTable();
         await this.refreshAdminStats();
-        window.app.showToast(`Автор ${name} сохранен!`, 'success');
+        window.app.showToast(editId ? `Данные автора ${name} обновлены!` : `Автор ${name} сохранен!`, 'success');
     }
 }
 

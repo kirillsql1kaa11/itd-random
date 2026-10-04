@@ -653,8 +653,9 @@
     <div class="modal-backdrop hidden" id="modal-new-author">
         <div class="modal-card" style="max-width: 480px;">
             <button class="modal-close-btn" id="btn-close-new-author-modal">✕</button>
-            <h2 class="modal-title">Добавить автора в базу</h2>
+            <h2 class="modal-title" id="modal-author-title">Добавить автора в базу</h2>
             <form id="form-add-author">
+                <input type="hidden" id="modal-author-edit-id">
                 <div class="form-group" style="margin-bottom: 12px;">
                     <label class="form-label">Отображаемое имя *</label>
                     <input type="text" id="modal-author-name" required placeholder="Например: Шляпа Боярского">
@@ -687,7 +688,7 @@
                         Галочка верификации
                     </label>
                 </div>
-                <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
+                <button type="submit" class="btn-primary-action" id="btn-save-author-modal" style="width: 100%; justify-content: center;">
                     Сохранить автора
                 </button>
             </form>

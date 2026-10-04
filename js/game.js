@@ -343,7 +343,17 @@ class GameEngine {
             itdLink.href = postUrl;
             itdLink.textContent = 'Открыть пост в ИТД ↗';
         } else {
-            itdLink.href = 'https://xn--d1ah4a.com/';
+            const rawNick = (author.handle || author.id || '').trim();
+            let profileUrl = 'https://xn--d1ah4a.com/';
+            if (rawNick.startsWith('http://') || rawNick.startsWith('https://')) {
+                profileUrl = rawNick;
+            } else if (rawNick) {
+                const cleanNick = rawNick.replace(/^@+/, '');
+                if (cleanNick) {
+                    profileUrl = `https://xn--d1ah4a.com/@${encodeURIComponent(cleanNick)}`;
+                }
+            }
+            itdLink.href = profileUrl;
             itdLink.textContent = 'Профиль в ИТД ↗';
         }
     }
