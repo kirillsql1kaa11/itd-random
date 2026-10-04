@@ -1,4 +1,4 @@
-// Application Controller & Router
+
 class App {
     constructor() {
         this.currentTab = 'home';
@@ -8,14 +8,12 @@ class App {
     }
 
     async init() {
-        // Initialize DB
-        await window.quizDB.init();
         
-        // Seed default authors & posts if empty
+        await window.quizDB.init();
+
         await window.authorsManager.load();
         await window.PresetsManager.initPresetsIfEmpty();
 
-        // If Supabase is configured, attempt remote sync
         if (window.supabaseService.isConfigured) {
             try {
                 const remoteAuthors = await window.supabaseService.fetchRemoteAuthors();
@@ -28,7 +26,6 @@ class App {
             }
         }
 
-        // Initialize components
         window.adminManager.init();
         await window.adminManager.refreshAuthorsDropdown();
         await window.adminManager.refreshAuthorsList();
@@ -37,16 +34,13 @@ class App {
 
         window.gameEngine.init();
 
-        // Setup UI Navigation & Modals
         this.bindNavigation();
         this.bindHomeLobby();
         this.bindModals();
         this.setupSoundButton();
 
-        // Start on Home view
         this.switchTab('home');
 
-        // Lightbox custom support
         window.gameEngine.toggleLightboxCustom = (src) => {
             const lightbox = document.getElementById('image-lightbox');
             const lbImg = document.getElementById('lightbox-img');
@@ -64,7 +58,6 @@ class App {
             });
         });
 
-        // "Play again" and "Next" buttons
         document.getElementById('btn-next-question')?.addEventListener('click', () => {
             window.gameEngine.next();
         });
@@ -77,7 +70,6 @@ class App {
             window.gameEngine.useHint();
         });
 
-        // Lightbox trigger on post screenshot
         document.getElementById('post-screenshot-container')?.addEventListener('click', () => {
             window.gameEngine.toggleLightbox();
         });
@@ -104,7 +96,6 @@ class App {
             });
         }
 
-        // Mode selectors on home
         document.querySelectorAll('.btn-home-mode').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.btn-home-mode').forEach(b => b.classList.remove('active'));
@@ -113,7 +104,6 @@ class App {
             });
         });
 
-        // Big Play CTA button
         document.getElementById('btn-home-play')?.addEventListener('click', () => {
             const nick = nicknameInput?.value.trim() || 'Аноним';
             window.gameEngine.setNickname(nick);
@@ -121,12 +111,10 @@ class App {
             window.gameEngine.start(this.selectedMode);
         });
 
-        // Quick action: Suggest Post
         document.getElementById('btn-home-suggest-post')?.addEventListener('click', () => {
             this.openSuggestPostModal();
         });
 
-        // Quick action: Authors & Search
         document.getElementById('btn-home-browse-authors')?.addEventListener('click', () => {
             this.switchTab('authors');
             setTimeout(() => {
@@ -134,12 +122,10 @@ class App {
             }, 100);
         });
 
-        // Quick action: Leaderboard
         document.getElementById('btn-home-leaderboard')?.addEventListener('click', () => {
             this.switchTab('leaderboard');
         });
 
-        // Authors search bar in catalog
         const authorsSearch = document.getElementById('authors-search-input');
         if (authorsSearch) {
             authorsSearch.addEventListener('input', (e) => {
@@ -197,7 +183,7 @@ class App {
     }
 
     bindModals() {
-        // Admin PIN modal submit
+        
         document.getElementById('form-admin-pin')?.addEventListener('submit', (e) => {
             e.preventDefault();
             const pin = document.getElementById('admin-pin-input').value.trim();
@@ -216,7 +202,6 @@ class App {
             document.getElementById('modal-admin-pin').classList.add('hidden');
         });
 
-        // New author modal open/close
         document.getElementById('btn-open-new-author-modal')?.addEventListener('click', () => {
             document.getElementById('modal-new-author').classList.remove('hidden');
         });
@@ -229,10 +214,8 @@ class App {
             document.getElementById('modal-new-author').classList.add('hidden');
         });
 
-        // Suggest Post Modal
         this.bindSuggestPostModal();
 
-        // Share summary results
         document.getElementById('btn-share-results')?.addEventListener('click', () => {
             const score = document.getElementById('sum-score').textContent;
             const streak = document.getElementById('sum-max-streak').textContent;
@@ -283,7 +266,6 @@ class App {
             });
         }
 
-        // Global paste for suggest modal
         window.addEventListener('paste', (e) => {
             if (modal.classList.contains('hidden')) return;
             const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
@@ -344,7 +326,6 @@ class App {
         const modal = document.getElementById('modal-suggest-post');
         modal.classList.remove('hidden');
 
-        // Populate authors dropdown
         const select = document.getElementById('suggest-author-select');
         const authors = window.authorsManager.getAll();
         select.innerHTML = '<option value="">— Выберите из известных авторов —</option>';

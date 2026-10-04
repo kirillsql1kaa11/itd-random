@@ -1,5 +1,5 @@
-// Supabase Cloud Database Client & Synchronization Manager
-// Integrates with Supabase for shared authors, posts, leaderboard and community submissions
+
+
 class SupabaseService {
     constructor() {
         const configUrl = window.APP_CONFIG?.supabaseUrl || '';
@@ -64,10 +64,9 @@ class SupabaseService {
         }
     }
 
-    // --- LEADERBOARD ---
     async getLeaderboard(limit = 20) {
         if (!this.isConfigured) {
-            // Local fallback
+            
             const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
             return local.sort((a, b) => b.score - a.score).slice(0, limit);
         }
@@ -91,7 +90,6 @@ class SupabaseService {
             mode: mode || 'blitz'
         };
 
-        // Always save locally
         const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
         local.push({ ...record, id: 'local_' + Date.now(), created_at: new Date().toISOString() });
         localStorage.setItem('itd_local_leaderboard', JSON.stringify(local.slice(-50)));
@@ -109,7 +107,6 @@ class SupabaseService {
         return record;
     }
 
-    // --- SUGGESTIONS ---
     async submitPostSuggestion({ authorId, authorName, screenshot, postText, submittedBy }) {
         const item = {
             author_id: authorId || null,
@@ -120,7 +117,6 @@ class SupabaseService {
             status: 'pending'
         };
 
-        // Save locally to IndexedDB as well
         await window.quizDB.saveSetting('pending_suggestion_' + Date.now(), item);
 
         if (this.isConfigured) {
@@ -158,7 +154,6 @@ class SupabaseService {
         return true;
     }
 
-    // --- POSTS & AUTHORS SYNC ---
     async fetchRemotePosts() {
         if (!this.isConfigured) return null;
         try {

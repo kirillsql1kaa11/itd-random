@@ -1,5 +1,5 @@
-// Robust IndexedDB Storage Manager for ITD Quiz
-// Allows storing high-res screenshot blobs, questions, authors, and player statistics without quota limits
+
+
 class QuizDB {
     constructor() {
         this.dbName = 'ITD_Quiz_DB';
@@ -123,7 +123,6 @@ class QuizDB {
         });
     }
 
-    // Export entire database as JSON string
     async exportBackup() {
         const posts = await this.getAllPosts();
         const authors = await this.getAuthors();
@@ -136,7 +135,6 @@ class QuizDB {
         }, null, 2);
     }
 
-    // Import database from JSON string
     async importBackup(jsonString) {
         const data = JSON.parse(jsonString);
         if (!data.posts && !data.authors) {

@@ -1,10 +1,9 @@
-// Preset questions and ITD post screenshot synthesizer
-// Creates crisp, authentic ITD post screenshots for initial gameplay
+
 
 function createITDPostScreenshotDataUrl({ text, date, likes, reposts, comments, tags = [] }) {
-    // Generate SVG mimicking exact ITD post card with masked/censored author
+    
     const width = 640;
-    // Calculate estimated height based on text length
+    
     const lines = [];
     const words = text.split(' ');
     let currentLine = '';
@@ -239,7 +238,7 @@ class PresetsManager {
                     id: item.id,
                     correctAuthorId: item.correctAuthorId,
                     postText: item.postText,
-                    screenshot: screenshotUrl, // Valid image data URL
+                    screenshot: screenshotUrl, 
                     hint: item.hint,
                     difficulty: item.difficulty,
                     tags: item.tags,

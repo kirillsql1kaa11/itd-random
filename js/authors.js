@@ -1,4 +1,4 @@
-// Popular authors of ITD (соцсеть ИТД) and author pool management
+
 const DEFAULT_AUTHORS = [
     {
         id: "nuksta",
@@ -167,7 +167,6 @@ class AuthorsManager {
         const shuffled = [...pool].sort(() => Math.random() - 0.5);
         const selected = shuffled.slice(0, count);
 
-        // Fallback placeholders if pool has less than 3 authors
         let fallbackIndex = 1;
         while (selected.length < count) {
             selected.push({

@@ -1,7 +1,4 @@
-/* ==========================================================================
-   ИТД: Угадай Автора — Минимализм и Тёмная Тема
-   Стилизовано под эстетику соцсети ИТД (итд.com)
-   ========================================================================== */
+
 
 :root {
     --bg-primary: #08080a;
@@ -60,7 +57,7 @@ body {
     scrollbar-gutter: stable;
 }
 
-/* Custom Scrollbar */
+
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -108,9 +105,7 @@ input:focus, textarea:focus, select:focus {
     display: none !important;
 }
 
-/* ==========================================================================
-   Header & Navbar
-   ========================================================================== */
+
 
 .app-header {
     position: sticky;
@@ -217,9 +212,7 @@ input:focus, textarea:focus, select:focus {
     background: var(--bg-card-hover);
 }
 
-/* ==========================================================================
-   Main Layout & Views
-   ========================================================================== */
+
 
 .main-content {
     flex: 1;
@@ -238,9 +231,7 @@ input:focus, textarea:focus, select:focus {
     to { opacity: 1; transform: translateY(0); }
 }
 
-/* ==========================================================================
-   Quiz View
-   ========================================================================== */
+
 
 .quiz-header-bar {
     display: flex;
@@ -320,7 +311,7 @@ input:focus, textarea:focus, select:focus {
     border-color: rgba(0, 128, 255, 0.3);
 }
 
-/* Timer Bar */
+
 .timer-bar-wrapper {
     height: 4px;
     background: var(--bg-secondary);
@@ -344,7 +335,7 @@ input:focus, textarea:focus, select:focus {
     background: var(--accent-danger);
 }
 
-/* Post Screenshot Card */
+
 .post-preview-card {
     position: relative;
     background: var(--bg-card);
@@ -386,7 +377,7 @@ input:focus, textarea:focus, select:focus {
     pointer-events: none;
 }
 
-/* Question prompt */
+
 .question-prompt {
     display: flex;
     align-items: center;
@@ -433,7 +424,7 @@ input:focus, textarea:focus, select:focus {
     animation: fadeIn 0.2s ease-out;
 }
 
-/* Options Grid */
+
 .options-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -544,7 +535,7 @@ input:focus, textarea:focus, select:focus {
     text-overflow: ellipsis;
 }
 
-/* Option Selected States */
+
 .quiz-option-btn.correct {
     background: rgba(0, 186, 124, 0.15) !important;
     border-color: var(--accent-green) !important;
@@ -565,7 +556,7 @@ input:focus, textarea:focus, select:focus {
     color: #f87171;
 }
 
-/* Author Reveal Card */
+
 .author-reveal-card {
     background: var(--bg-card);
     border: 1px solid var(--border-subtle);
@@ -661,7 +652,7 @@ input:focus, textarea:focus, select:focus {
     text-decoration: underline;
 }
 
-/* Quiz Controls (Next Button) */
+
 .quiz-controls-row {
     display: flex;
     justify-content: center;
@@ -693,9 +684,7 @@ input:focus, textarea:focus, select:focus {
     transform: scale(0.98);
 }
 
-/* ==========================================================================
-   Summary View
-   ========================================================================== */
+
 
 .summary-card {
     background: var(--bg-card);
@@ -846,9 +835,7 @@ input:focus, textarea:focus, select:focus {
     color: var(--text-muted);
 }
 
-/* ==========================================================================
-   Admin Panel View
-   ========================================================================== */
+
 
 .admin-header-row {
     display: flex;
@@ -890,7 +877,7 @@ input:focus, textarea:focus, select:focus {
     justify-content: space-between;
 }
 
-/* Screenshot Upload Dropzone */
+
 .upload-dropzone {
     border: 2px dashed var(--border-hover);
     border-radius: var(--radius-md);
@@ -935,7 +922,7 @@ input:focus, textarea:focus, select:focus {
     margin-top: 8px;
 }
 
-/* Censor Canvas & Image Preview */
+
 .censor-preview-wrapper {
     display: flex;
     flex-direction: column;
@@ -1010,7 +997,7 @@ input:focus, textarea:focus, select:focus {
     height: auto;
 }
 
-/* Form Styles */
+
 .form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1055,7 +1042,7 @@ input:focus, textarea:focus, select:focus {
     margin-top: 20px;
 }
 
-/* Table of Existing Posts */
+
 .table-responsive {
     overflow-x: auto;
 }
@@ -1127,7 +1114,7 @@ input:focus, textarea:focus, select:focus {
     color: var(--text-muted);
 }
 
-/* Authors Catalog in Admin */
+
 .admin-authors-list {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -1208,7 +1195,7 @@ input:focus, textarea:focus, select:focus {
     color: var(--accent-danger);
 }
 
-/* Backup tools bar */
+
 .admin-backup-bar {
     display: flex;
     align-items: center;
@@ -1219,9 +1206,7 @@ input:focus, textarea:focus, select:focus {
     border-top: 1px solid var(--border-subtle);
 }
 
-/* ==========================================================================
-   Public Authors Catalog View
-   ========================================================================== */
+
 
 .authors-catalog-grid {
     display: grid;
@@ -1304,9 +1289,7 @@ input:focus, textarea:focus, select:focus {
     text-decoration: underline;
 }
 
-/* ==========================================================================
-   Modals & Lightbox
-   ========================================================================== */
+
 
 .modal-backdrop {
     position: fixed;
@@ -1373,7 +1356,7 @@ input:focus, textarea:focus, select:focus {
     margin-bottom: 20px;
 }
 
-/* Lightbox */
+
 .lightbox-backdrop {
     position: fixed;
     inset: 0;
@@ -1403,9 +1386,7 @@ input:focus, textarea:focus, select:focus {
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8);
 }
 
-/* ==========================================================================
-   Toasts & Confetti Canvas
-   ========================================================================== */
+
 
 #toast-container {
     position: fixed;
@@ -1471,9 +1452,7 @@ input:focus, textarea:focus, select:focus {
     z-index: 2500;
 }
 
-/* ==========================================================================
-   Footer
-   ========================================================================== */
+
 
 .app-footer {
     border-top: 1px solid var(--border-subtle);
@@ -1514,9 +1493,7 @@ input:focus, textarea:focus, select:focus {
     background: var(--bg-secondary);
 }
 
-/* ==========================================================================
-   Home Lobby Styles
-   ========================================================================== */
+
 
 .home-hero-card {
     background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-secondary) 100%);
@@ -1661,7 +1638,7 @@ input:focus, textarea:focus, select:focus {
     transform: scale(0.98);
 }
 
-/* Home Action Grid */
+
 .home-actions-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1719,7 +1696,7 @@ input:focus, textarea:focus, select:focus {
     line-height: 1.35;
 }
 
-/* Page Headers */
+
 .page-header-row {
     display: flex;
     align-items: center;
@@ -1740,7 +1717,7 @@ input:focus, textarea:focus, select:focus {
     color: var(--text-muted);
 }
 
-/* Search bar */
+
 .authors-search-wrapper {
     margin-bottom: 18px;
 }
@@ -1759,7 +1736,7 @@ input:focus, textarea:focus, select:focus {
     border-color: var(--accent-blue);
 }
 
-/* Leaderboard */
+
 .lb-medal {
     display: inline-flex;
     align-items: center;
@@ -1803,7 +1780,7 @@ input:focus, textarea:focus, select:focus {
     margin-left: 6px;
 }
 
-/* Lives indicator */
+
 .lives-indicator {
     display: inline-flex;
     align-items: center;

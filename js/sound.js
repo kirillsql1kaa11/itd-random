@@ -1,4 +1,4 @@
-// Sound effects synthesized via Web Audio API (no external audio files required)
+
 class SoundFX {
     constructor() {
         this.ctx = null;
@@ -52,7 +52,7 @@ class SoundFX {
         if (!this.ctx) return;
 
         const now = this.ctx.currentTime;
-        // Two-tone rising major third chord
+        
         [523.25, 659.25, 783.99].forEach((freq, idx) => {
             const osc = this.ctx.createOscillator();
             const gain = this.ctx.createGain();

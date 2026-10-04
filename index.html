@@ -12,7 +12,7 @@
 </head>
 <body>
 
-    <!-- Header Navbar -->
+    
     <header class="app-header">
         <div class="header-container">
             <div class="logo-group">
@@ -43,10 +43,10 @@
         </div>
     </header>
 
-    <!-- Main Content Area -->
+    
     <main class="main-content">
 
-        <!-- 0. HOME / LOBBY SCREEN -->
+        
         <section id="view-home" class="app-view">
             <div class="home-hero-card">
                 <div class="home-hero-header">
@@ -57,7 +57,7 @@
                     </p>
                 </div>
 
-                <!-- Player Nickname & Mode Setup -->
+                
                 <div class="home-player-setup">
                     <div class="form-group" style="margin-bottom: 16px;">
                         <label class="form-label" for="home-nickname-input">Ваш игровой никнейм</label>
@@ -88,7 +88,7 @@
                 </div>
             </div>
 
-            <!-- Quick Action Grid -->
+            
             <div class="home-actions-grid">
                 <div class="home-action-box" id="btn-home-suggest-post">
                     <div class="hab-icon">
@@ -122,9 +122,9 @@
             </div>
         </section>
 
-        <!-- 1. QUIZ VIEW -->
+        
         <section id="view-quiz" class="app-view hidden">
-            <!-- Top Status Bar -->
+            
             <div class="quiz-header-bar">
                 <div class="quiz-stats-group">
                     <div class="stat-item">
@@ -147,12 +147,12 @@
                 </div>
             </div>
 
-            <!-- Timer Bar -->
+            
             <div class="timer-bar-wrapper" id="quiz-timer-box">
                 <div class="timer-bar-fill" id="timer-progress-fill"></div>
             </div>
 
-            <!-- Post Screenshot Preview Card -->
+            
             <div class="post-preview-card" id="post-screenshot-container" title="Нажмите, чтобы приблизить скриншот">
                 <img id="post-screenshot-img" src="" alt="Скриншот поста ИТД">
                 <div class="screenshot-zoom-hint">
@@ -161,7 +161,7 @@
                 </div>
             </div>
 
-            <!-- Prompt & Hint Row -->
+            
             <div class="question-prompt">
                 <span class="prompt-title">Кто написал этот пост?</span>
                 <button class="btn-hint" id="btn-use-hint">
@@ -169,15 +169,15 @@
                 </button>
             </div>
 
-            <!-- Hint Box (Hidden by default) -->
+            
             <div class="hint-box hidden" id="hint-content"></div>
 
-            <!-- 4 Options Grid -->
+            
             <div class="options-grid" id="quiz-options-grid">
-                <!-- Dynamically populated buttons -->
+                
             </div>
 
-            <!-- Author Reveal Profile (Appears after answer) -->
+            
             <div class="author-reveal-card hidden" id="author-reveal-card">
                 <div class="reveal-title" id="reveal-title">Верно!</div>
                 <div class="reveal-author-profile">
@@ -193,7 +193,7 @@
                 </div>
             </div>
 
-            <!-- Controls (Next Question Button) -->
+            
             <div class="quiz-controls-row">
                 <button class="btn-primary-action hidden" id="btn-next-question">
                     Следующий пост ➔ <span style="font-size:11px; opacity:0.6;">[Пробел]</span>
@@ -201,7 +201,7 @@
             </div>
         </section>
 
-        <!-- 2. SUMMARY / GAME OVER VIEW -->
+        
         <section id="view-summary" class="app-view hidden">
             <div class="summary-card">
                 <div class="summary-badge-icon">
@@ -235,7 +235,7 @@
             <div class="summary-history-list" id="summary-history-list"></div>
         </section>
 
-        <!-- 3. LEADERBOARD VIEW -->
+        
         <section id="view-leaderboard" class="app-view hidden">
             <div class="page-header-row">
                 <div>
@@ -258,13 +258,13 @@
                         </tr>
                     </thead>
                     <tbody id="leaderboard-tbody">
-                        <!-- Populated dynamically -->
+                        
                     </tbody>
                 </table>
             </div>
         </section>
 
-        <!-- 4. AUTHORS CATALOG VIEW -->
+        
         <section id="view-authors" class="app-view hidden">
             <div class="page-header-row">
                 <div>
@@ -276,7 +276,7 @@
                 </button>
             </div>
 
-            <!-- Live Search Bar -->
+            
             <div class="authors-search-wrapper">
                 <input type="text" id="authors-search-input" class="search-input" placeholder="Поиск по имени, @handle или стилю...">
             </div>
@@ -284,7 +284,7 @@
             <div class="authors-catalog-grid" id="public-authors-grid"></div>
         </section>
 
-        <!-- 5. STATS VIEW -->
+        
         <section id="view-stats" class="app-view hidden">
             <div class="page-header-row">
                 <div>
@@ -313,7 +313,7 @@
             </div>
         </section>
 
-        <!-- 6. ADMIN PANEL VIEW (Accessible only from footer link) -->
+        
         <section id="view-admin" class="app-view hidden">
             <div class="admin-header-row">
                 <div>
@@ -323,7 +323,7 @@
                 <span class="admin-badge-count" id="admin-total-posts-badge">0 постов</span>
             </div>
 
-            <!-- Supabase Cloud Connection Card -->
+            
             <div class="admin-card">
                 <h2 class="admin-card-title">Подключение базы данных (Supabase)</h2>
                 <p style="font-size:12px; color:var(--text-muted); margin-bottom: 14px;">
@@ -347,7 +347,7 @@
                 </form>
             </div>
 
-            <!-- Post Upload & Edit Card -->
+            
             <div class="admin-card">
                 <h2 class="admin-card-title" id="admin-form-title">Загрузка скриншота поста</h2>
 
@@ -361,7 +361,7 @@
                 </div>
                 <input type="file" id="admin-file-input" accept="image/*" class="hidden">
 
-                <!-- Censor / Redact Canvas -->
+                
                 <div class="censor-preview-wrapper hidden" id="admin-preview-container">
                     <div class="censor-toolbar">
                         <div class="censor-tools-group">
@@ -386,7 +386,7 @@
                     </div>
                 </div>
 
-                <!-- Post Details Form -->
+                
                 <form id="admin-post-form">
                     <div class="form-grid">
                         <div class="form-group col-span-2">
@@ -450,7 +450,7 @@
                 </form>
             </div>
 
-            <!-- Existing Posts Table Card -->
+            
             <div class="admin-card">
                 <div class="admin-card-title">
                     <span>Вопросы в базе</span>
@@ -490,7 +490,7 @@
                 </div>
             </div>
 
-            <!-- Authors Pool Card -->
+            
             <div class="admin-card">
                 <div class="admin-card-title">
                     <span>Пул авторов ИТД</span>
@@ -504,7 +504,7 @@
 
     </main>
 
-    <!-- Footer -->
+    
     <footer class="app-footer">
         <span>ИТД: Угадай Автора</span>
         <span>•</span>
@@ -513,7 +513,7 @@
         <button type="button" class="footer-admin-btn" onclick="window.app.switchTab('admin');">Панель управления</button>
     </footer>
 
-    <!-- MODAL: Suggest Post (Предложить пост) -->
+    
     <div class="modal-backdrop hidden" id="modal-suggest-post">
         <div class="modal-card" style="max-width: 520px;">
             <button class="modal-close-btn" id="btn-close-suggest-post">✕</button>
@@ -556,7 +556,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Admin PIN Protection -->
+    
     <div class="modal-backdrop hidden" id="modal-admin-pin">
         <div class="modal-card">
             <button class="modal-close-btn" id="btn-close-pin-modal">✕</button>
@@ -573,7 +573,7 @@
         </div>
     </div>
 
-    <!-- MODAL: Add New Author -->
+    
     <div class="modal-backdrop hidden" id="modal-new-author">
         <div class="modal-card" style="max-width: 480px;">
             <button class="modal-close-btn" id="btn-close-new-author-modal">✕</button>
@@ -618,20 +618,20 @@
         </div>
     </div>
 
-    <!-- MODAL: Lightbox for Screenshot Zoom -->
+    
     <div class="lightbox-backdrop hidden" id="image-lightbox">
         <div class="lightbox-content">
             <img src="" alt="Zoomed Screenshot" class="lightbox-img" id="lightbox-img">
         </div>
     </div>
 
-    <!-- Toast Notifications -->
+    
     <div id="toast-container"></div>
 
-    <!-- Confetti Canvas -->
+    
     <canvas id="confetti-canvas"></canvas>
 
-    <!-- Application Scripts -->
+    
     <script src="js/icons.js"></script>
     <script src="js/sound.js"></script>
     <script src="js/config.js"></script>

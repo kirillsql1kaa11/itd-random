@@ -1,7 +1,7 @@
-// Game Engine: Quiz mechanics, scoring, streak multiplier, timers and animations
+
 class GameEngine {
     constructor() {
-        this.mode = 'blitz'; // 'blitz', 'survival', 'practice'
+        this.mode = 'blitz'; 
         this.postsPool = [];
         this.currentIndex = 0;
         this.currentPost = null;
@@ -36,7 +36,6 @@ class GameEngine {
             return;
         }
 
-        // Shuffle posts
         this.postsPool = [...allPosts].sort(() => Math.random() - 0.5);
         if (mode === 'blitz') {
             this.postsPool = this.postsPool.slice(0, 10);
@@ -84,7 +83,6 @@ class GameEngine {
         this.isAnswered = false;
         this.hintUsed = false;
 
-        // Exactly 4 options: 1 guaranteed correct + 3 distinct distractors
         const correctAuthor = window.authorsManager.getById(this.currentPost.correctAuthorId) || {
             id: this.currentPost.correctAuthorId,
             name: this.currentPost.correctAuthorId,
@@ -105,7 +103,6 @@ class GameEngine {
         const questionEl = document.getElementById('view-quiz');
         if (!questionEl) return;
 
-        // Update header stats
         document.getElementById('stat-streak').textContent = this.streak;
         document.getElementById('stat-score').textContent = this.score;
 
@@ -122,7 +119,6 @@ class GameEngine {
             roundLabel.textContent = `Пост ${this.currentIndex + 1}`;
         }
 
-        // Streak multiplier indicator
         const multEl = document.getElementById('stat-multiplier');
         const mult = this.getStreakMultiplier();
         multEl.textContent = `x${mult}`;
@@ -132,12 +128,10 @@ class GameEngine {
             multEl.classList.remove('active');
         }
 
-        // Post screenshot
         const imgEl = document.getElementById('post-screenshot-img');
         imgEl.src = this.currentPost.screenshot;
         imgEl.alt = "Скриншот поста ИТД";
 
-        // Hint box
         const hintBtn = document.getElementById('btn-use-hint');
         const hintText = document.getElementById('hint-content');
         hintText.classList.add('hidden');
@@ -145,16 +139,13 @@ class GameEngine {
         hintBtn.disabled = false;
         hintBtn.classList.remove('used');
 
-        // Next button state
         const nextBtn = document.getElementById('btn-next-question');
         nextBtn.classList.add('hidden');
 
-        // Author Reveal Box
         const revealCard = document.getElementById('author-reveal-card');
         revealCard.classList.add('hidden');
         revealCard.className = 'author-reveal-card hidden';
 
-        // Render 4 answer buttons
         const optionsContainer = document.getElementById('quiz-options-grid');
         optionsContainer.innerHTML = '';
 
@@ -277,7 +268,7 @@ class GameEngine {
 
             if (this.mode === 'survival') {
                 this.lives--;
-                // Update live heart indicators immediately
+                
                 const roundLabel = document.getElementById('stat-round-label');
                 let heartsHtml = '';
                 for (let i = 0; i < 3; i++) {
@@ -296,7 +287,6 @@ class GameEngine {
             }
         }
 
-        // Save round history
         this.history.push({
             post: this.currentPost,
             correctAuthor,
@@ -304,7 +294,6 @@ class GameEngine {
             isCorrect
         });
 
-        // Show Next button
         const nextBtn = document.getElementById('btn-next-question');
         nextBtn.classList.remove('hidden');
         nextBtn.focus();
@@ -366,7 +355,6 @@ class GameEngine {
         const total = this.history.length;
         const percent = total > 0 ? Math.round((correctCount / total) * 100) : 0;
 
-        // Update overall stats in DB and cloud leaderboard
         await this.updatePlayerStats();
         await window.supabaseService.saveScore({
             nickname: this.nickname,
@@ -376,7 +364,6 @@ class GameEngine {
             mode: this.mode
         });
 
-        // Switch to summary view
         document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
         document.getElementById('view-summary').classList.remove('hidden');
 
@@ -385,7 +372,6 @@ class GameEngine {
         document.getElementById('sum-accuracy').textContent = `${percent}% (${correctCount}/${total})`;
         document.getElementById('sum-rank').textContent = this.calculateRank(percent, this.score);
 
-        // Render answer history recap
         const historyContainer = document.getElementById('summary-history-list');
         historyContainer.innerHTML = '';
         this.history.forEach((item) => {

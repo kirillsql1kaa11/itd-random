@@ -1,4 +1,4 @@
-// Admin Panel logic: screenshot upload, censor/masking tool, author and post management, Supabase sync
+
 class AdminManager {
     constructor() {
         this.isAuthenticated = false;
@@ -14,7 +14,7 @@ class AdminManager {
     }
 
     bindEvents() {
-        // Dropzone & File picker
+        
         const dropzone = document.getElementById('admin-dropzone');
         const fileInput = document.getElementById('admin-file-input');
 
@@ -45,10 +45,8 @@ class AdminManager {
             });
         }
 
-        // Censor / Mask Canvas
         this.setupCensorCanvas();
 
-        // Author select changed
         const authorSelect = document.getElementById('admin-author-select');
         if (authorSelect) {
             authorSelect.addEventListener('change', (e) => {
@@ -61,7 +59,6 @@ class AdminManager {
             });
         }
 
-        // Save post button
         const form = document.getElementById('admin-post-form');
         if (form) {
             form.addEventListener('submit', (e) => {
@@ -70,13 +67,11 @@ class AdminManager {
             });
         }
 
-        // Quick clear / reset form
         const resetBtn = document.getElementById('btn-admin-reset-form');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => this.resetForm());
         }
 
-        // Backup export & import
         const btnExport = document.getElementById('btn-export-backup');
         if (btnExport) {
             btnExport.addEventListener('click', () => this.exportBackup());
@@ -91,13 +86,11 @@ class AdminManager {
             });
         }
 
-        // Reset to default presets button
         const btnResetDefaults = document.getElementById('btn-reset-presets');
         if (btnResetDefaults) {
             btnResetDefaults.addEventListener('click', () => this.resetPresets());
         }
 
-        // New author form
         const formNewAuthor = document.getElementById('form-add-author');
         if (formNewAuthor) {
             formNewAuthor.addEventListener('submit', (e) => {
@@ -106,10 +99,9 @@ class AdminManager {
             });
         }
 
-        // Supabase Settings form in admin
         const formDbConfig = document.getElementById('form-admin-supabase');
         if (formDbConfig) {
-            // Fill existing
+            
             document.getElementById('input-admin-sb-url').value = window.supabaseService.url;
             document.getElementById('input-admin-sb-key').value = window.supabaseService.key;
 

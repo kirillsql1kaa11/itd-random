@@ -1,9 +1,3 @@
--- ==============================================================================
--- СХЕМА БАЗЫ ДАННЫХ ДЛЯ SUPABASE (ИТД: УГАДАЙ АВТОРА)
--- Выполните этот SQL в панели Supabase -> SQL Editor
--- ==============================================================================
-
--- 1. Таблица авторов ИТД
 create table if not exists public.authors (
     id text primary key,
     name text not null,
@@ -16,12 +10,11 @@ create table if not exists public.authors (
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 2. Таблица постов викторины
 create table if not exists public.posts (
     id text primary key,
     correct_author_id text references public.authors(id) on delete cascade,
     post_text text,
-    screenshot text not null, -- URL или base64 картинки
+    screenshot text not null, 
     hint text,
     difficulty text default 'normal',
     tags text[] default array[]::text[],
@@ -29,7 +22,6 @@ create table if not exists public.posts (
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 3. Таблица рекордов и рейтинга игроков
 create table if not exists public.leaderboard (
     id uuid default gen_random_uuid() primary key,
     nickname text not null,
@@ -40,7 +32,6 @@ create table if not exists public.leaderboard (
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 4. Предложенные игроками посты (модерация в админке)
 create table if not exists public.suggestions_posts (
     id uuid default gen_random_uuid() primary key,
     author_id text,
@@ -48,11 +39,10 @@ create table if not exists public.suggestions_posts (
     screenshot text not null,
     post_text text,
     submitted_by text default 'Аноним',
-    status text default 'pending', -- pending, approved, rejected
+    status text default 'pending', 
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 5. Предложенные игроками авторы
 create table if not exists public.suggestions_authors (
     id uuid default gen_random_uuid() primary key,
     name text not null,
@@ -63,19 +53,16 @@ create table if not exists public.suggestions_authors (
     created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Индексы для ускорения запросов
 create index if not exists idx_leaderboard_score on public.leaderboard (score desc);
 create index if not exists idx_posts_author on public.posts (correct_author_id);
 create index if not exists idx_authors_name on public.authors (name);
 
--- Включение Row Level Security (RLS)
 alter table public.authors enable row level security;
 alter table public.posts enable row level security;
 alter table public.leaderboard enable row level security;
 alter table public.suggestions_posts enable row level security;
 alter table public.suggestions_authors enable row level security;
 
--- Политики доступа (Публичное чтение и добавление результатов)
 create policy "Allow public read authors" on public.authors for select using (true);
 create policy "Allow public insert authors" on public.authors for insert with check (true);
 create policy "Allow public update authors" on public.authors for update using (true);
