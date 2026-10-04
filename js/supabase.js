@@ -2,8 +2,10 @@
 // Integrates with Supabase for shared authors, posts, leaderboard and community submissions
 class SupabaseService {
     constructor() {
-        this.url = localStorage.getItem('supabase_url') || '';
-        this.key = localStorage.getItem('supabase_key') || '';
+        const configUrl = window.APP_CONFIG?.supabaseUrl || '';
+        const configKey = window.APP_CONFIG?.supabaseKey || '';
+        this.url = localStorage.getItem('supabase_url') || configUrl;
+        this.key = localStorage.getItem('supabase_key') || configKey;
         this.isConfigured = Boolean(this.url && this.key);
     }
 
