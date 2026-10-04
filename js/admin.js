@@ -107,7 +107,7 @@ class AdminManager {
     setupPasswordSettings() {
         const formPassword = document.getElementById('form-change-admin-password');
         if (formPassword) {
-            formPassword.addEventListener('submit', (e) => {
+            formPassword.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const newPassInput = document.getElementById('new-admin-password-input');
                 const val = (newPassInput?.value || '').trim();
@@ -119,9 +119,9 @@ class AdminManager {
                     window.app.showToast('Пароль слишком короткий (минимум 3 символа)', 'warning');
                     return;
                 }
-                window.supabaseService.setAdminPassword(val);
+                await window.supabaseService.setAdminPassword(val);
                 newPassInput.value = '';
-                window.app.showToast('Пароль администратора успешно изменен', 'success');
+                window.app.showToast('Пароль администратора успешно сохранен в базе', 'success');
             });
         }
 

@@ -258,19 +258,39 @@ class App {
     }
 
     bindModals() {
-        document.getElementById('form-admin-pin')?.addEventListener('submit', (e) => {
+        document.getElementById('form-admin-pin')?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const input = document.getElementById('admin-pin-input')?.value.trim() || '';
-            const correctPassword = window.supabaseService.getAdminPassword();
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Проверка...';
+            }
 
-            if (input === correctPassword || input === 'admin' || input === '1234') {
-                this.adminUnlocked = true;
-                localStorage.setItem('itd_admin_unlocked', 'true');
-                document.getElementById('modal-admin-pin')?.classList.add('hidden');
-                this.switchTab('admin');
-                this.showToast('Доступ в панель управления открыт', 'success');
-            } else {
-                this.showToast('Неверный пароль администратора!', 'error');
+            try {
+                const isValid = await window.supabaseService.verifyAdminPassword(input);
+                if (isValid) {
+                    this.adminUnlocked = true;
+                    localStorage.setItem('itd_admin_unlocked', 'true');
+                    document.getElementById('modal-admin-pin')?.classList.add('hidden');
+                    this.switchTab('admin');
+                    this.showToast('Доступ в панель управления открыт', 'success');
+                } else {
+                    this.showToast('Неверный пароль администратора!', 'error');
+                    const inputEl = document.getElementById('admin-pin-input');
+                    if (inputEl) {
+                        inputEl.value = '';
+                        inputEl.focus();
+                    }
+                }
+            } catch (err) {
+                console.warn(err);
+                this.showToast('Ошибка при проверке пароля', 'error');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Войти';
+                }
             }
         });
 
@@ -296,6 +316,15 @@ class App {
 
         document.getElementById('form-suggest-author')?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const lastAuthTime = parseInt(localStorage.getItem('itd_last_author_suggest_time') || '0', 10);
+            const now = Date.now();
+            const cooldown = 60 * 1000;
+            if (now - lastAuthTime < cooldown) {
+                const rem = Math.ceil((cooldown - (now - lastAuthTime)) / 1000);
+                this.showToast(`Подождите ${rem} сек. перед предложением следующего автора`, 'warning');
+                return;
+            }
+
             const name = document.getElementById('suggest-author-name')?.value.trim();
             const handle = document.getElementById('suggest-author-handle')?.value.trim();
             const bio = document.getElementById('suggest-author-bio')?.value.trim();
@@ -313,6 +342,7 @@ class App {
                 submittedBy: submitter
             });
 
+            localStorage.setItem('itd_last_author_suggest_time', String(Date.now()));
             document.getElementById('modal-suggest-author')?.classList.add('hidden');
             document.getElementById('form-suggest-author')?.reset();
             this.showToast('Спасибо! Автор отправлен на модерацию', 'success');
@@ -385,6 +415,15 @@ class App {
 
         form?.addEventListener('submit', async (e) => {
             e.preventDefault();
+            const lastPostTime = parseInt(localStorage.getItem('itd_last_post_suggest_time') || '0', 10);
+            const now = Date.now();
+            const cooldown = 60 * 1000;
+            if (now - lastPostTime < cooldown) {
+                const rem = Math.ceil((cooldown - (now - lastPostTime)) / 1000);
+                this.showToast(`Подождите ${rem} сек. перед предложением следующего поста`, 'warning');
+                return;
+            }
+
             if (!this.suggestedScreenshotDataUrl) {
                 this.showToast('Пожалуйста, прикрепите скриншот поста!', 'error');
                 return;
@@ -407,6 +446,7 @@ class App {
                 submittedBy: submitter
             });
 
+            localStorage.setItem('itd_last_post_suggest_time', String(Date.now()));
             modal.classList.add('hidden');
             form.reset();
             this.suggestedScreenshotDataUrl = null;

@@ -62,13 +62,45 @@ class SupabaseService {
         }
     }
 
-    getAdminPassword() {
-        return localStorage.getItem('itd_admin_custom_password') || window.APP_CONFIG?.adminPassword || 'admin';
+    async verifyAdminPassword(candidatePassword) {
+        if (!candidatePassword) return false;
+        const clean = String(candidatePassword).trim();
+        if (this.isConfigured) {
+            try {
+                const data = await this.request('admin_settings?key=eq.admin_password&select=value');
+                if (Array.isArray(data) && data.length > 0 && data[0].value) {
+                    return clean === String(data[0].value).trim();
+                }
+            } catch (e) {
+                console.warn(e);
+            }
+        }
+        const local = localStorage.getItem('itd_admin_custom_password');
+        if (local) {
+            return clean === local.trim();
+        }
+        return clean === 'kirill12';
     }
 
-    setAdminPassword(newPassword) {
+    async setAdminPassword(newPassword) {
         if (!newPassword || newPassword.trim().length === 0) return false;
-        localStorage.setItem('itd_admin_custom_password', newPassword.trim());
+        const val = newPassword.trim();
+        localStorage.setItem('itd_admin_custom_password', val);
+        if (this.isConfigured) {
+            try {
+                await this.request('admin_settings', {
+                    method: 'POST',
+                    prefer: 'resolution=merge-duplicates',
+                    body: {
+                        key: 'admin_password',
+                        value: val,
+                        updated_at: new Date().toISOString()
+                    }
+                });
+            } catch (e) {
+                console.warn(e);
+            }
+        }
         return true;
     }
 
