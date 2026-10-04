@@ -173,7 +173,7 @@ class GameEngine {
             btn.innerHTML = `
                 <div class="option-key-badge">${idx + 1}</div>
                 <div class="option-avatar" style="background: ${author.avatarColor || '#333'}">
-                    ${author.avatarText || author.name[0]}
+                    ${author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?')}
                 </div>
                 <div class="option-meta">
                     <div class="option-name-row">
@@ -329,7 +329,7 @@ class GameEngine {
             : `<span class="reveal-status-icon">${window.Icons.cross}</span> Неверно. Автор поста:`;
 
         document.getElementById('reveal-avatar').style.background = author.avatarColor || '#0080ff';
-        document.getElementById('reveal-avatar').textContent = author.avatarText || author.name[0];
+        document.getElementById('reveal-avatar').textContent = author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?');
         document.getElementById('reveal-name').textContent = author.name;
         document.getElementById('reveal-handle').textContent = author.handle || '@' + author.id;
         document.getElementById('reveal-bio').textContent = author.bio || author.style || 'Популярный автор в ИТД';

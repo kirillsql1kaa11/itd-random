@@ -95,6 +95,13 @@ class AdminManager {
                 window.app.showToast('Статистика обновлена', 'info');
             });
         }
+
+        const btnGoHome = document.getElementById('btn-admin-go-home');
+        if (btnGoHome) {
+            btnGoHome.addEventListener('click', () => {
+                window.app.switchTab('home');
+            });
+        }
     }
 
     setupPasswordSettings() {
@@ -149,7 +156,7 @@ class AdminManager {
                 const item = document.createElement('div');
                 item.className = 'author-suggestion-item';
                 item.innerHTML = `
-                    <div class="asi-avatar" style="background:${a.avatarColor || '#333'}">${a.avatarText || a.name[0]}</div>
+                    <div class="asi-avatar" style="background:${a.avatarColor || '#333'}">${a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?')}</div>
                     <div class="asi-meta">
                         <div class="asi-name">${escapeHtml(a.name)}</div>
                         <div class="asi-handle">${escapeHtml(a.handle || '@' + a.id)}</div>
@@ -191,7 +198,7 @@ class AdminManager {
 
         hiddenInput.value = author.id;
         pillContainer.innerHTML = `
-            <div class="sap-avatar" style="background:${author.avatarColor || '#333'}">${author.avatarText || author.name[0]}</div>
+            <div class="sap-avatar" style="background:${author.avatarColor || '#333'}">${author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?')}</div>
             <span class="sap-name">${escapeHtml(author.name)}</span>
             <span class="sap-handle">${escapeHtml(author.handle || '@' + author.id)}</span>
             <button type="button" class="sap-remove-btn" title="Сменить автора">✕</button>
@@ -266,9 +273,12 @@ class AdminManager {
             const authorDisplayName = author ? `${author.name} (${author.handle})` : (item.author_name || 'Не указан');
 
             let authorSelectHtml = '<select class="asc-author-select"><option value="">— Привязать к автору —</option>';
+            const targetAuthorName = (item.author_name || '').toString().toLowerCase();
             allAuthors.forEach(a => {
-                const isSelected = (item.author_id && item.author_id === a.id) || (item.author_name && a.name.toLowerCase() === item.author_name.toLowerCase());
-                authorSelectHtml += `<option value="${a.id}" ${isSelected ? 'selected' : ''}>${escapeHtml(a.name)} (${escapeHtml(a.handle || '')})</option>`;
+                const aName = (a && a.name) ? String(a.name) : '';
+                const aHandle = (a && a.handle) ? String(a.handle) : '';
+                const isSelected = (item.author_id && a && item.author_id === a.id) || (targetAuthorName && aName && aName.toLowerCase() === targetAuthorName);
+                authorSelectHtml += `<option value="${a ? a.id : ''}" ${isSelected ? 'selected' : ''}>${escapeHtml(aName || 'Без имени')} (${escapeHtml(aHandle)})</option>`;
             });
             authorSelectHtml += '</select>';
 
@@ -368,7 +378,7 @@ class AdminManager {
             const card = document.createElement('div');
             card.className = 'admin-author-suggestion-card';
 
-            const firstChar = (item.name || '?')[0].toUpperCase();
+            const firstChar = (item.name && item.name.length > 0 ? item.name[0] : '?').toUpperCase();
             card.innerHTML = `
                 <div class="aasc-avatar">${firstChar}</div>
                 <div class="aasc-info">
@@ -663,7 +673,7 @@ class AdminManager {
             const card = document.createElement('div');
             card.className = 'admin-author-item';
             card.innerHTML = `
-                <div class="aai-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || a.name[0]}</div>
+                <div class="aai-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?')}</div>
                 <div class="aai-info">
                     <div class="aai-name-row">
                         <strong>${escapeHtml(a.name)}</strong>

@@ -118,7 +118,7 @@ class SupabaseService {
         let fullText = (postText || '').trim();
         const cleanUrl = (postUrl || '').trim();
         if (cleanUrl) {
-            fullText = fullText ? `${fullText}\n\n🔗 ${cleanUrl}` : `🔗 ${cleanUrl}`;
+            fullText = fullText ? `${fullText}\n\n[URL: ${cleanUrl}]` : `[URL: ${cleanUrl}]`;
         }
 
         const item = {
@@ -168,10 +168,10 @@ class SupabaseService {
         return list.map(item => {
             let rawText = item.post_text || '';
             let postUrl = item.post_url || '';
-            const match = rawText.match(/🔗\s*(https?:\/\/[^\s]+)/) || rawText.match(/\[URL:\s*([^\]]+)\]/);
+            const match = rawText.match(/(?:\uD83D\uDD17|\[URL:)\s*(https?:\/\/[^\s\]]+)/);
             if (match) {
                 postUrl = match[1];
-                rawText = rawText.replace(/🔗\s*https?:\/\/[^\s]+/, '').replace(/\[URL:\s*[^\]]+\]/, '').trim();
+                rawText = rawText.replace(/(?:\uD83D\uDD17|\[URL:)\s*https?:\/\/[^\s\]]+\]?/, '').trim();
             }
             return {
                 ...item,

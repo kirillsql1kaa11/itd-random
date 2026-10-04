@@ -7,43 +7,46 @@ class App {
     }
 
     async init() {
-        await window.quizDB.init();
-        await window.authorsManager.load();
-        await window.PresetsManager.initPresetsIfEmpty();
-
-        if (window.supabaseService.isConfigured) {
-            try {
-                const remoteAuthors = await window.supabaseService.fetchRemoteAuthors();
-                if (remoteAuthors && remoteAuthors.length > 0) {
-                    await window.quizDB.saveAuthors(remoteAuthors);
-                    await window.authorsManager.load();
-                }
-            } catch (e) {
-                console.warn('Remote sync skipped', e);
-            }
-        }
-
-        window.adminManager.init();
-        await window.adminManager.refreshAuthorsList();
-        await window.adminManager.refreshPostsTable();
-        await window.adminManager.refreshSuggestedPosts();
-        await window.adminManager.refreshSuggestedAuthors();
-
-        window.gameEngine.init();
-
         this.bindNavigation();
         this.bindHomeLobby();
         this.bindModals();
         this.setupSoundButton();
+        this.setupBackdropClose();
+        document.querySelectorAll('.modal-backdrop, .lightbox-backdrop').forEach(m => {
+            m.classList.add('hidden');
+        });
+
+        try {
+            await window.quizDB.init();
+            await window.authorsManager.load();
+            await window.PresetsManager.initPresetsIfEmpty();
+        } catch (e) {
+            console.warn(e);
+        }
+
+        window.adminManager.init();
+        window.gameEngine.init();
 
         this.switchTab('home');
 
         window.gameEngine.toggleLightboxCustom = (src) => {
             const lightbox = document.getElementById('image-lightbox');
             const lbImg = document.getElementById('lightbox-img');
-            lbImg.src = src;
-            lightbox.classList.remove('hidden');
+            if (lightbox && lbImg) {
+                lbImg.src = src;
+                lightbox.classList.remove('hidden');
+            }
         };
+
+        if (window.supabaseService?.isConfigured) {
+            window.supabaseService.fetchRemoteAuthors().then(remoteAuthors => {
+                if (remoteAuthors && remoteAuthors.length > 0) {
+                    window.quizDB.saveAuthors(remoteAuthors).then(() => {
+                        window.authorsManager.load();
+                    });
+                }
+            }).catch(console.warn);
+        }
     }
 
     generateRandomNickname() {
@@ -66,9 +69,12 @@ class App {
     bindNavigation() {
         const navBtns = document.querySelectorAll('.nav-tab-btn');
         navBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
                 const target = btn.dataset.tab;
-                this.switchTab(target);
+                if (target) {
+                    this.switchTab(target);
+                }
             });
         });
 
@@ -89,12 +95,12 @@ class App {
         });
 
         document.getElementById('btn-close-lightbox')?.addEventListener('click', () => {
-            document.getElementById('image-lightbox').classList.add('hidden');
+            document.getElementById('image-lightbox')?.classList.add('hidden');
         });
 
         document.getElementById('image-lightbox')?.addEventListener('click', (e) => {
             if (e.target.id === 'image-lightbox') {
-                document.getElementById('image-lightbox').classList.add('hidden');
+                document.getElementById('image-lightbox')?.classList.add('hidden');
             }
         });
     }
@@ -129,7 +135,7 @@ class App {
                 localStorage.setItem('itd_player_nickname', freshNick);
                 window.gameEngine.setNickname(freshNick);
                 this.showToast(`Новый ник: ${freshNick}`, 'info');
-                window.soundFX.playClick();
+                window.soundFX?.playClick();
             });
         }
 
@@ -195,18 +201,22 @@ class App {
             targetView.classList.remove('hidden');
         }
 
-        if (tab === 'admin') {
-            window.adminManager.refreshAdminStats();
-            window.adminManager.refreshPostsTable();
-            window.adminManager.refreshAuthorsList();
-            window.adminManager.refreshSuggestedPosts();
-            window.adminManager.refreshSuggestedAuthors();
-        } else if (tab === 'authors') {
-            this.renderPublicAuthorsCatalog();
-        } else if (tab === 'leaderboard') {
-            this.renderLeaderboardView();
-        } else if (tab === 'stats') {
-            this.renderStatsView();
+        try {
+            if (tab === 'admin') {
+                window.adminManager.refreshAdminStats().catch(console.warn);
+                window.adminManager.refreshPostsTable().catch(console.warn);
+                window.adminManager.refreshAuthorsList().catch(console.warn);
+                window.adminManager.refreshSuggestedPosts().catch(console.warn);
+                window.adminManager.refreshSuggestedAuthors().catch(console.warn);
+            } else if (tab === 'authors') {
+                this.renderPublicAuthorsCatalog();
+            } else if (tab === 'leaderboard') {
+                this.renderLeaderboardView().catch(console.warn);
+            } else if (tab === 'stats') {
+                this.renderStatsView().catch(console.warn);
+            }
+        } catch (e) {
+            console.warn(e);
         }
 
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -214,22 +224,49 @@ class App {
 
     openAdminPinModal() {
         const modal = document.getElementById('modal-admin-pin');
+        if (!modal) return;
         modal.classList.remove('hidden');
         const input = document.getElementById('admin-pin-input');
-        input.value = '';
-        input.focus();
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+    }
+
+    setupBackdropClose() {
+        document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) {
+                    backdrop.classList.add('hidden');
+                }
+            });
+        });
+
+        document.querySelectorAll('.modal-close-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.closest('.modal-backdrop')?.classList.add('hidden');
+            });
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-backdrop, .lightbox-backdrop').forEach(m => {
+                    m.classList.add('hidden');
+                });
+            }
+        });
     }
 
     bindModals() {
         document.getElementById('form-admin-pin')?.addEventListener('submit', (e) => {
             e.preventDefault();
-            const input = document.getElementById('admin-pin-input').value.trim();
+            const input = document.getElementById('admin-pin-input')?.value.trim() || '';
             const correctPassword = window.supabaseService.getAdminPassword();
 
             if (input === correctPassword || input === 'admin' || input === '1234') {
                 this.adminUnlocked = true;
                 localStorage.setItem('itd_admin_unlocked', 'true');
-                document.getElementById('modal-admin-pin').classList.add('hidden');
+                document.getElementById('modal-admin-pin')?.classList.add('hidden');
                 this.switchTab('admin');
                 this.showToast('Доступ в панель управления открыт', 'success');
             } else {
@@ -238,30 +275,30 @@ class App {
         });
 
         document.getElementById('btn-close-pin-modal')?.addEventListener('click', () => {
-            document.getElementById('modal-admin-pin').classList.add('hidden');
+            document.getElementById('modal-admin-pin')?.classList.add('hidden');
         });
 
         document.getElementById('btn-open-new-author-modal')?.addEventListener('click', () => {
-            document.getElementById('modal-new-author').classList.remove('hidden');
+            document.getElementById('modal-new-author')?.classList.remove('hidden');
         });
 
         document.getElementById('btn-close-new-author-modal')?.addEventListener('click', () => {
-            document.getElementById('modal-new-author').classList.add('hidden');
+            document.getElementById('modal-new-author')?.classList.add('hidden');
         });
 
         document.getElementById('btn-open-suggest-author')?.addEventListener('click', () => {
-            document.getElementById('modal-suggest-author').classList.remove('hidden');
+            document.getElementById('modal-suggest-author')?.classList.remove('hidden');
         });
 
         document.getElementById('btn-close-suggest-author-modal')?.addEventListener('click', () => {
-            document.getElementById('modal-suggest-author').classList.add('hidden');
+            document.getElementById('modal-suggest-author')?.classList.add('hidden');
         });
 
         document.getElementById('form-suggest-author')?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const name = document.getElementById('suggest-author-name').value.trim();
-            const handle = document.getElementById('suggest-author-handle').value.trim();
-            const bio = document.getElementById('suggest-author-bio').value.trim();
+            const name = document.getElementById('suggest-author-name')?.value.trim();
+            const handle = document.getElementById('suggest-author-handle')?.value.trim();
+            const bio = document.getElementById('suggest-author-bio')?.value.trim();
             const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
             if (!name) {
@@ -276,18 +313,18 @@ class App {
                 submittedBy: submitter
             });
 
-            document.getElementById('modal-suggest-author').classList.add('hidden');
-            document.getElementById('form-suggest-author').reset();
+            document.getElementById('modal-suggest-author')?.classList.add('hidden');
+            document.getElementById('form-suggest-author')?.reset();
             this.showToast('Спасибо! Автор отправлен на модерацию', 'success');
         });
 
         this.bindSuggestPostModal();
 
         document.getElementById('btn-share-results')?.addEventListener('click', () => {
-            const score = document.getElementById('sum-score').textContent;
-            const streak = document.getElementById('sum-max-streak').textContent;
-            const accuracy = document.getElementById('sum-accuracy').textContent;
-            const rank = document.getElementById('sum-rank').textContent;
+            const score = document.getElementById('sum-score')?.textContent || '0';
+            const streak = document.getElementById('sum-max-streak')?.textContent || '0';
+            const accuracy = document.getElementById('sum-accuracy')?.textContent || '0%';
+            const rank = document.getElementById('sum-rank')?.textContent || 'Игрок';
 
             const shareText = `ИТД: Угадай Автора\nСчет: ${score} | Точность: ${accuracy}\nМакс. серия: ${streak} | Звание: ${rank}\nСыграй сам: ${window.location.origin}`;
 
@@ -308,7 +345,7 @@ class App {
         const dropzone = document.getElementById('suggest-dropzone');
         const fileInput = document.getElementById('suggest-file-input');
 
-        closeBtn?.addEventListener('click', () => modal.classList.add('hidden'));
+        closeBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
 
         if (dropzone && fileInput) {
             dropzone.addEventListener('click', () => fileInput.click());
@@ -334,7 +371,7 @@ class App {
         }
 
         window.addEventListener('paste', (e) => {
-            if (modal.classList.contains('hidden')) return;
+            if (!modal || modal.classList.contains('hidden')) return;
             const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
             if (!items) return;
             for (const item of items) {
@@ -354,27 +391,27 @@ class App {
             }
 
             const authorSelect = document.getElementById('suggest-author-select');
-            const authorCustom = document.getElementById('suggest-author-custom').value.trim();
-            const authorName = authorCustom || authorSelect.options[authorSelect.selectedIndex]?.text || '';
-            const authorId = authorSelect.value;
-            const postText = document.getElementById('suggest-post-text').value.trim();
+            const authorCustom = document.getElementById('suggest-author-custom')?.value.trim();
+            const authorName = authorCustom || authorSelect?.options[authorSelect.selectedIndex]?.text || '';
+            const authorId = authorSelect?.value || null;
+            const postText = document.getElementById('suggest-post-text')?.value.trim() || '';
             const postUrl = document.getElementById('suggest-post-url')?.value.trim() || '';
             const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
             await window.supabaseService.submitPostSuggestion({
-                authorId: authorId || null,
-                authorName: authorName,
+                authorId,
+                authorName,
                 screenshot: this.suggestedScreenshotDataUrl,
-                postText: postText,
-                postUrl: postUrl,
+                postText,
+                postUrl,
                 submittedBy: submitter
             });
 
             modal.classList.add('hidden');
             form.reset();
             this.suggestedScreenshotDataUrl = null;
-            document.getElementById('suggest-preview-container').classList.add('hidden');
-            dropzone.classList.remove('hidden');
+            document.getElementById('suggest-preview-container')?.classList.add('hidden');
+            dropzone?.classList.remove('hidden');
             this.showToast('Спасибо! Пост отправлен на модерацию', 'success');
         });
     }
@@ -384,18 +421,20 @@ class App {
         reader.onload = (e) => {
             this.suggestedScreenshotDataUrl = e.target.result;
             const img = document.getElementById('suggest-preview-img');
-            img.src = e.target.result;
-            document.getElementById('suggest-dropzone').classList.add('hidden');
-            document.getElementById('suggest-preview-container').classList.remove('hidden');
+            if (img) img.src = e.target.result;
+            document.getElementById('suggest-dropzone')?.classList.add('hidden');
+            document.getElementById('suggest-preview-container')?.classList.remove('hidden');
         };
         reader.readAsDataURL(file);
     }
 
     openSuggestPostModal() {
         const modal = document.getElementById('modal-suggest-post');
+        if (!modal) return;
         modal.classList.remove('hidden');
 
         const select = document.getElementById('suggest-author-select');
+        if (!select) return;
         const authors = window.authorsManager.getAll();
         select.innerHTML = '<option value="">— Выберите из известных авторов —</option>';
         authors.forEach(a => {
@@ -411,14 +450,14 @@ class App {
         if (!soundBtn) return;
 
         const updateIcon = () => {
-            const isMuted = window.soundFX.isMuted();
+            const isMuted = window.soundFX?.isMuted();
             soundBtn.innerHTML = isMuted ? window.Icons.volumeMute : window.Icons.volume;
             soundBtn.title = isMuted ? 'Включить звук' : 'Выключить звук';
         };
 
         updateIcon();
         soundBtn.addEventListener('click', () => {
-            window.soundFX.toggleMute();
+            window.soundFX?.toggleMute();
             updateIcon();
         });
     }
@@ -431,7 +470,7 @@ class App {
         grid.innerHTML = '';
 
         if (authors.length === 0) {
-            grid.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">Авторы по запросу "${escapeHtml(searchQuery)}" не найдены.</div>`;
+            grid.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">Авторы по запросу "${window.escapeHtml(searchQuery)}" не найдены.</div>`;
             return;
         }
 
@@ -439,13 +478,13 @@ class App {
             const card = document.createElement('div');
             card.className = 'author-card-public';
             card.innerHTML = `
-                <div class="acp-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || a.name[0]}</div>
+                <div class="acp-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name ? a.name[0] : '?')}</div>
                 <div class="acp-header">
-                    <div class="acp-name">${escapeHtml(a.name)} ${a.verified ? `<span class="verified-icon">${window.Icons.check}</span>` : ''}</div>
-                    <div class="acp-handle">${escapeHtml(a.handle || '@' + a.id)}</div>
+                    <div class="acp-name">${window.escapeHtml(a.name)} ${a.verified ? `<span class="verified-icon">${window.Icons.check}</span>` : ''}</div>
+                    <div class="acp-handle">${window.escapeHtml(a.handle || '@' + a.id)}</div>
                 </div>
-                ${a.badge ? `<div class="acp-badge-tag">${escapeHtml(a.badge)}</div>` : ''}
-                <div class="acp-bio">${escapeHtml(a.bio || a.style || 'Популярный автор в ИТД')}</div>
+                ${a.badge ? `<div class="acp-badge-tag">${window.escapeHtml(a.badge)}</div>` : ''}
+                <div class="acp-bio">${window.escapeHtml(a.bio || a.style || 'Популярный автор в ИТД')}</div>
                 <div class="acp-footer">
                     <a href="https://xn--d1ah4a.com/" target="_blank" class="acp-link">Профиль в ИТД ↗</a>
                 </div>
@@ -486,7 +525,7 @@ class App {
             tr.innerHTML = `
                 <td class="col-rank">${rankBadge}</td>
                 <td class="col-player">
-                    <strong>${escapeHtml(entry.nickname)}</strong>
+                    <strong>${window.escapeHtml(entry.nickname)}</strong>
                     ${isMe ? '<span class="lb-you-tag">Вы</span>' : ''}
                 </td>
                 <td class="col-score"><strong>${entry.score}</strong></td>
@@ -507,12 +546,17 @@ class App {
             totalAnswers: 0
         });
 
-        document.getElementById('stat-display-games').textContent = stats.gamesPlayed;
-        document.getElementById('stat-display-score').textContent = stats.totalScore;
-        document.getElementById('stat-display-streak').textContent = stats.bestStreak;
+        const elGames = document.getElementById('stat-display-games');
+        const elScore = document.getElementById('stat-display-score');
+        const elStreak = document.getElementById('stat-display-streak');
+        const elAccuracy = document.getElementById('stat-display-accuracy');
+
+        if (elGames) elGames.textContent = stats.gamesPlayed;
+        if (elScore) elScore.textContent = stats.totalScore;
+        if (elStreak) elStreak.textContent = stats.bestStreak;
         
         const pct = stats.totalAnswers > 0 ? Math.round((stats.correctAnswers / stats.totalAnswers) * 100) : 0;
-        document.getElementById('stat-display-accuracy').textContent = `${pct}%`;
+        if (elAccuracy) elAccuracy.textContent = `${pct}%`;
     }
 
     showToast(message, type = 'info') {
@@ -532,6 +576,10 @@ class App {
 }
 
 window.app = new App();
-window.addEventListener('DOMContentLoaded', () => {
+if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', () => {
+        window.app.init();
+    });
+} else {
     window.app.init();
-});
+}

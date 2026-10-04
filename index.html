@@ -22,16 +22,16 @@
             </div>
 
             <nav class="nav-tabs" aria-label="Основная навигация">
-                <button class="nav-tab-btn active" data-tab="home" id="nav-btn-home">
+                <button class="nav-tab-btn active" data-tab="home" id="nav-btn-home" onclick="if(window.app)window.app.switchTab('home');">
                     Главная
                 </button>
-                <button class="nav-tab-btn" data-tab="leaderboard" id="nav-btn-leaderboard">
+                <button class="nav-tab-btn" data-tab="leaderboard" id="nav-btn-leaderboard" onclick="if(window.app)window.app.switchTab('leaderboard');">
                     Рейтинг
                 </button>
-                <button class="nav-tab-btn" data-tab="authors" id="nav-btn-authors">
+                <button class="nav-tab-btn" data-tab="authors" id="nav-btn-authors" onclick="if(window.app)window.app.switchTab('authors');">
                     Авторы
                 </button>
-                <button class="nav-tab-btn" data-tab="stats" id="nav-btn-stats">
+                <button class="nav-tab-btn" data-tab="stats" id="nav-btn-stats" onclick="if(window.app)window.app.switchTab('stats');">
                     Статистика
                 </button>
             </nav>
@@ -314,10 +314,13 @@
                     <span id="admin-db-status" class="admin-badge-count">Supabase активен</span>
                 </div>
                 <div class="admin-header-actions">
+                    <button type="button" class="btn-primary-action" id="btn-admin-go-home" onclick="if(window.app)window.app.switchTab('home');" style="font-size:12px; padding:6px 14px;">
+                        ← На главную
+                    </button>
                     <button type="button" class="btn-secondary-action" id="btn-admin-refresh-stats" style="font-size:12px; padding:6px 14px;">
                         Обновить статистику
                     </button>
-                    <button type="button" class="btn-danger-outline" id="btn-admin-logout">
+                    <button type="button" class="btn-danger-outline" id="btn-admin-logout" onclick="if(window.app){window.app.adminUnlocked=false;localStorage.removeItem('itd_admin_unlocked');window.app.switchTab('home');}">
                         Выйти
                     </button>
                 </div>
@@ -537,6 +540,15 @@
                         Обновить пароль
                     </button>
                 </form>
+            </div>
+
+            <div style="margin-top: 24px; display: flex; justify-content: space-between; align-items: center; padding-top: 16px; border-top: 1px solid var(--border-subtle); flex-wrap: wrap; gap: 12px;">
+                <button type="button" class="btn-secondary-action" onclick="if(window.app)window.app.switchTab('home');">
+                    ← Вернуться на главную
+                </button>
+                <button type="button" class="btn-danger-outline" onclick="if(window.app){window.app.adminUnlocked=false;localStorage.removeItem('itd_admin_unlocked');window.app.switchTab('home');}">
+                    Выйти из панели управления
+                </button>
             </div>
         </section>
 
