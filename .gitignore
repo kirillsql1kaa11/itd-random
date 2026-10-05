@@ -5,9 +5,9 @@ desktop.ini
 __pycache__/
 *.py[cod]
 *$py.class
-*.env
-.env
-.env.local
+*.env*
+.env*
+*.sql
 
 .vscode/
 .idea/
@@ -20,6 +20,3 @@ yarn-debug.log*
 yarn-error.log*
 
 .vercel
-
-.env.local
-.env

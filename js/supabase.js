@@ -5,6 +5,7 @@ class SupabaseService {
         this.url = localStorage.getItem('supabase_url') || configUrl;
         this.key = localStorage.getItem('supabase_key') || configKey;
         this.isConfigured = Boolean(this.url && this.key);
+        this.adminToken = sessionStorage.getItem('itd_admin_token') || null;
     }
 
     setCredentials(url, key) {
@@ -19,8 +20,32 @@ class SupabaseService {
         this.url = '';
         this.key = '';
         this.isConfigured = false;
+        this.adminToken = null;
         localStorage.removeItem('supabase_url');
         localStorage.removeItem('supabase_key');
+        sessionStorage.removeItem('itd_admin_token');
+    }
+
+    async apiCall(endpoint, options = {}) {
+        const headers = {
+            'Content-Type': 'application/json',
+            ...(this.adminToken ? { 'Authorization': `Bearer ${this.adminToken}` } : {}),
+            ...(options.headers || {})
+        };
+
+        const res = await fetch(`/api/${endpoint}`, {
+            method: options.method || 'GET',
+            headers,
+            body: options.body ? JSON.stringify(options.body) : undefined
+        });
+
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `API error ${res.status}`);
+        }
+
+        if (res.status === 204) return null;
+        return await res.json();
     }
 
     async request(endpoint, options = {}) {
@@ -57,7 +82,6 @@ class SupabaseService {
             await this.request('authors?select=id&limit=1');
             return true;
         } catch (e) {
-            console.warn(e);
             return false;
         }
     }
@@ -65,27 +89,59 @@ class SupabaseService {
     async verifyAdminPassword(candidatePassword) {
         if (!candidatePassword) return false;
         const clean = String(candidatePassword).trim();
-        if (this.isConfigured) {
-            try {
-                const data = await this.request('admin_settings?key=eq.admin_password&select=value');
-                if (Array.isArray(data) && data.length > 0 && data[0].value) {
-                    return clean === String(data[0].value).trim();
-                }
-            } catch (e) {
-                console.warn(e);
+
+        try {
+            const res = await this.apiCall('admin?action=login', {
+                method: 'POST',
+                body: { password: clean }
+            });
+            if (res && res.ok && res.token) {
+                this.adminToken = res.token;
+                sessionStorage.setItem('itd_admin_token', res.token);
+                return true;
+            }
+        } catch (apiErr) {
+            if (apiErr.message === 'Неверный пароль') {
+                return false;
             }
         }
-        const local = localStorage.getItem('itd_admin_custom_password');
-        if (local) {
-            return clean === local.trim();
+
+        if (this.isConfigured) {
+            try {
+                const rpcRes = await this.request('rpc/verify_admin_password', {
+                    method: 'POST',
+                    body: { candidate_password: clean }
+                });
+                if (rpcRes === true) {
+                    this.adminToken = 'rpc_verified_' + Date.now();
+                    sessionStorage.setItem('itd_admin_token', this.adminToken);
+                    return true;
+                }
+            } catch (e) {
+            }
         }
-        return clean === 'kirill12';
+
+        const local = localStorage.getItem('itd_admin_custom_password');
+        if (local && clean === local.trim()) {
+            return true;
+        }
+        return false;
     }
 
     async setAdminPassword(newPassword) {
         if (!newPassword || newPassword.trim().length === 0) return false;
         const val = newPassword.trim();
         localStorage.setItem('itd_admin_custom_password', val);
+
+        try {
+            await this.apiCall('admin?action=change_password', {
+                method: 'POST',
+                body: { newPassword: val, adminToken: this.adminToken }
+            });
+            return true;
+        } catch (e) {
+        }
+
         if (this.isConfigured) {
             try {
                 await this.request('admin_settings', {
@@ -98,10 +154,34 @@ class SupabaseService {
                     }
                 });
             } catch (e) {
-                console.warn(e);
             }
         }
         return true;
+    }
+
+    async getQuizQuestions(mode = 'blitz') {
+        try {
+            const data = await this.apiCall(`quiz?action=get_questions&mode=${encodeURIComponent(mode)}`);
+            if (data && Array.isArray(data.questions) && data.questions.length > 0) {
+                return data.questions;
+            }
+        } catch (e) {
+        }
+        return null;
+    }
+
+    async verifyAnswer(qToken, selectedAuthorId, fallbackPostId = null) {
+        try {
+            const data = await this.apiCall('quiz?action=check_answer', {
+                method: 'POST',
+                body: { qToken, selectedAuthorId }
+            });
+            if (data && typeof data.isCorrect === 'boolean') {
+                return data;
+            }
+        } catch (e) {
+        }
+        return null;
     }
 
     async getLeaderboard(limit = 25) {
@@ -114,7 +194,6 @@ class SupabaseService {
             const data = await this.request(`leaderboard?select=*&order=score.desc&limit=${limit}`);
             return data;
         } catch (e) {
-            console.warn(e);
             const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
             return local.sort((a, b) => b.score - a.score).slice(0, limit);
         }
@@ -140,7 +219,6 @@ class SupabaseService {
                     body: record
                 });
             } catch (e) {
-                console.warn(e);
             }
         }
         return record;
@@ -174,7 +252,6 @@ class SupabaseService {
                     body: item
                 });
             } catch (e) {
-                console.warn(e);
             }
         }
         return true;
@@ -189,7 +266,6 @@ class SupabaseService {
                     list = data;
                 }
             } catch (e) {
-                console.warn(e);
             }
         }
 
@@ -235,7 +311,15 @@ class SupabaseService {
             createdAt: Date.now()
         };
 
-        await this.savePost(postRecord);
+        try {
+            await this.apiCall('admin?action=moderate_post', {
+                method: 'POST',
+                body: { id: suggestion.id, status: 'approved', postRecord }
+            });
+        } catch (e) {
+            await this.savePost(postRecord);
+        }
+
         await window.quizDB.savePost(postRecord);
 
         if (suggestion.id) {
@@ -249,24 +333,6 @@ class SupabaseService {
         const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
         const updated = local.filter(s => s.id !== suggestion.id);
         localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
-
-        if (this.isConfigured && suggestion.id && !String(suggestion.id).startsWith('sugg_')) {
-            try {
-                await this.request(`suggestions_posts?id=eq.${suggestion.id}`, {
-                    method: 'DELETE'
-                });
-            } catch (e) {
-                console.warn(e);
-            }
-            try {
-                await this.request(`suggestions_posts?id=eq.${suggestion.id}`, {
-                    method: 'PATCH',
-                    body: { status: 'approved' }
-                });
-            } catch (e) {
-                console.warn(e);
-            }
-        }
 
         return postRecord;
     }
@@ -284,21 +350,17 @@ class SupabaseService {
         const updated = local.filter(s => s.id !== suggestionId);
         localStorage.setItem('itd_local_suggestions', JSON.stringify(updated));
 
-        if (this.isConfigured && !String(suggestionId).startsWith('sugg_')) {
-            try {
-                await this.request(`suggestions_posts?id=eq.${suggestionId}`, {
-                    method: 'DELETE'
-                });
-            } catch (e) {
-                console.warn(e);
-            }
-            try {
-                await this.request(`suggestions_posts?id=eq.${suggestionId}`, {
-                    method: 'PATCH',
-                    body: { status: 'rejected' }
-                });
-            } catch (e) {
-                console.warn(e);
+        try {
+            await this.apiCall('admin?action=moderate_post', {
+                method: 'POST',
+                body: { id: suggestionId, status: 'rejected' }
+            });
+        } catch (e) {
+            if (this.isConfigured && !String(suggestionId).startsWith('sugg_')) {
+                try {
+                    await this.request(`suggestions_posts?id=eq.${suggestionId}`, { method: 'DELETE' });
+                } catch (err) {
+                }
             }
         }
     }
@@ -323,7 +385,6 @@ class SupabaseService {
                     body: item
                 });
             } catch (e) {
-                console.warn(e);
             }
         }
         return true;
@@ -338,7 +399,6 @@ class SupabaseService {
                     list = data;
                 }
             } catch (e) {
-                console.warn(e);
             }
         }
 
@@ -381,7 +441,15 @@ class SupabaseService {
             verified: true
         };
 
-        await this.saveAuthor(authorRecord);
+        try {
+            await this.apiCall('admin?action=moderate_author', {
+                method: 'POST',
+                body: { id: suggestion.id, status: 'approved', authorRecord }
+            });
+        } catch (e) {
+            await this.saveAuthor(authorRecord);
+        }
+
         await window.authorsManager.addAuthor(authorRecord);
 
         if (suggestion.id) {
@@ -395,24 +463,6 @@ class SupabaseService {
         const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
         const updated = local.filter(s => s.id !== suggestion.id);
         localStorage.setItem('itd_local_author_suggestions', JSON.stringify(updated));
-
-        if (this.isConfigured && suggestion.id && !String(suggestion.id).startsWith('sugg_auth_')) {
-            try {
-                await this.request(`suggestions_authors?id=eq.${suggestion.id}`, {
-                    method: 'DELETE'
-                });
-            } catch (e) {
-                console.warn(e);
-            }
-            try {
-                await this.request(`suggestions_authors?id=eq.${suggestion.id}`, {
-                    method: 'PATCH',
-                    body: { status: 'approved' }
-                });
-            } catch (e) {
-                console.warn(e);
-            }
-        }
 
         return authorRecord;
     }
@@ -430,21 +480,17 @@ class SupabaseService {
         const updated = local.filter(s => s.id !== suggestionId);
         localStorage.setItem('itd_local_author_suggestions', JSON.stringify(updated));
 
-        if (this.isConfigured && !String(suggestionId).startsWith('sugg_auth_')) {
-            try {
-                await this.request(`suggestions_authors?id=eq.${suggestionId}`, {
-                    method: 'DELETE'
-                });
-            } catch (e) {
-                console.warn(e);
-            }
-            try {
-                await this.request(`suggestions_authors?id=eq.${suggestionId}`, {
-                    method: 'PATCH',
-                    body: { status: 'rejected' }
-                });
-            } catch (e) {
-                console.warn(e);
+        try {
+            await this.apiCall('admin?action=moderate_author', {
+                method: 'POST',
+                body: { id: suggestionId, status: 'rejected' }
+            });
+        } catch (e) {
+            if (this.isConfigured && !String(suggestionId).startsWith('sugg_')) {
+                try {
+                    await this.request(`suggestions_authors?id=eq.${suggestionId}`, { method: 'DELETE' });
+                } catch (err) {
+                }
             }
         }
     }
@@ -513,13 +559,21 @@ class SupabaseService {
                 stats.pendingAuthors = sa.length;
             }
         } catch (e) {
-            console.warn(e);
         }
 
         return stats;
     }
 
     async saveAuthor(author) {
+        try {
+            await this.apiCall('admin?action=save_author', {
+                method: 'POST',
+                body: { author }
+            });
+            return;
+        } catch (e) {
+        }
+
         if (!this.isConfigured) return;
         try {
             await this.request('authors', {
@@ -529,30 +583,44 @@ class SupabaseService {
                     id: author.id,
                     name: author.name,
                     handle: author.handle,
-                    avatar_color: author.avatarColor,
-                    avatar_text: author.avatarText,
+                    avatar_color: author.avatarColor || author.avatar_color,
+                    avatar_text: author.avatarText || author.avatar_text,
                     badge: author.badge || null,
                     bio: author.bio || null,
                     verified: Boolean(author.verified)
                 }
             });
         } catch (e) {
-            console.warn(e);
         }
     }
 
     async deleteAuthor(id) {
+        try {
+            await this.apiCall('admin?action=delete_author', {
+                method: 'POST',
+                body: { id }
+            });
+            return;
+        } catch (e) {
+        }
+
         if (!this.isConfigured) return;
         try {
-            await this.request(`authors?id=eq.${id}`, {
-                method: 'DELETE'
-            });
+            await this.request(`authors?id=eq.${id}`, { method: 'DELETE' });
         } catch (e) {
-            console.warn(e);
         }
     }
 
     async savePost(post) {
+        try {
+            await this.apiCall('admin?action=save_post', {
+                method: 'POST',
+                body: { post }
+            });
+            return;
+        } catch (e) {
+        }
+
         if (!this.isConfigured) return;
         try {
             await this.request('posts', {
@@ -570,18 +638,23 @@ class SupabaseService {
                 }
             });
         } catch (e) {
-            console.warn(e);
         }
     }
 
     async deletePost(id) {
+        try {
+            await this.apiCall('admin?action=delete_post', {
+                method: 'POST',
+                body: { id }
+            });
+            return;
+        } catch (e) {
+        }
+
         if (!this.isConfigured) return;
         try {
-            await this.request(`posts?id=eq.${id}`, {
-                method: 'DELETE'
-            });
+            await this.request(`posts?id=eq.${id}`, { method: 'DELETE' });
         } catch (e) {
-            console.warn(e);
         }
     }
 
@@ -601,7 +674,6 @@ class SupabaseService {
                 createdAt: new Date(p.created_at).getTime()
             }));
         } catch (e) {
-            console.warn(e);
             return null;
         }
     }
@@ -621,7 +693,6 @@ class SupabaseService {
                 verified: a.verified
             }));
         } catch (e) {
-            console.warn(e);
             return null;
         }
     }

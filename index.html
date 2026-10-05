@@ -47,7 +47,16 @@
         <section id="view-home" class="app-view">
             <div class="home-hero-card">
                 <div class="home-hero-header">
-                    <span class="home-hero-tag">Викторина по соцсети ИТД</span>
+                    <div class="hero-top-badges">
+                        <span class="home-hero-tag">Викторина по соцсети ИТД</span>
+                        <a href="https://xn--d1ah4a.com/@l1kaa11" target="_blank" rel="noopener noreferrer" class="hero-creator-pill" title="Профиль автора в ИТД: @l1kaa11">
+                            <span class="hcp-prefix">Автор:</span>
+                            <span class="hcp-avatar">K</span>
+                            <span class="hcp-name">Kirill Sqweezy</span>
+                            <span class="hcp-handle">@l1kaa11</span>
+                            <span class="hcp-badge">ИТД ↗</span>
+                        </a>
+                    </div>
                     <h1 class="home-hero-title">Угадай, кто написал пост</h1>
                     <p class="home-hero-subtitle">
                         Определяй авторов по скриншотам постов, стилю текста и шуткам. Соревнуйся в рейтинге лучших скроллеров ИТД.
@@ -486,7 +495,11 @@
                     </button>
                 </div>
 
-                <div class="table-responsive">
+                <div class="admin-filter-bar">
+                    <input type="text" id="admin-posts-search-input" class="search-input" placeholder="Поиск вопросов по автору, тексту или подсказке...">
+                </div>
+
+                <div class="table-responsive admin-table-scroll-container">
                     <table class="admin-posts-table">
                         <thead>
                             <tr>
@@ -499,6 +512,15 @@
                         </thead>
                         <tbody id="admin-posts-tbody"></tbody>
                     </table>
+                </div>
+
+                <div class="admin-pagination-bar" id="admin-posts-pagination">
+                    <div class="admin-pagination-info" id="admin-posts-page-info">0 вопросов</div>
+                    <div class="admin-pagination-controls">
+                        <button type="button" class="btn-page-nav" id="btn-posts-prev" title="Предыдущая страница">← Назад</button>
+                        <span class="admin-page-number" id="posts-page-number">1 / 1</span>
+                        <button type="button" class="btn-page-nav" id="btn-posts-next" title="Следующая страница">Вперед →</button>
+                    </div>
                 </div>
 
                 <div class="admin-backup-bar">
@@ -524,7 +546,21 @@
                         + Добавить автора
                     </button>
                 </div>
-                <div class="admin-authors-list" id="admin-authors-list"></div>
+
+                <div class="admin-filter-bar">
+                    <input type="text" id="admin-authors-search-input" class="search-input" placeholder="Поиск авторов по имени или @handle...">
+                </div>
+
+                <div class="admin-authors-list admin-authors-scroll-container" id="admin-authors-list"></div>
+
+                <div class="admin-pagination-bar" id="admin-authors-pagination">
+                    <div class="admin-pagination-info" id="admin-authors-page-info">0 авторов</div>
+                    <div class="admin-pagination-controls">
+                        <button type="button" class="btn-page-nav" id="btn-authors-prev" title="Предыдущая страница">← Назад</button>
+                        <span class="admin-page-number" id="authors-page-number">1 / 1</span>
+                        <button type="button" class="btn-page-nav" id="btn-authors-next" title="Следующая страница">Вперед →</button>
+                    </div>
+                </div>
             </div>
 
             <div class="admin-card">
@@ -557,7 +593,9 @@
     <footer class="app-footer">
         <span>ИТД: Угадай Автора</span>
         <span>•</span>
-        <a href="https://xn--d1ah4a.com/" target="_blank" class="footer-link">Оригинальный сайт итд.com ↗</a>
+        <span>Автор: <a href="https://xn--d1ah4a.com/@l1kaa11" target="_blank" rel="noopener noreferrer" class="footer-link">@l1kaa11 (ИТД) ↗</a></span>
+        <span>•</span>
+        <a href="https://xn--d1ah4a.com/" target="_blank" rel="noopener noreferrer" class="footer-link">итд.com ↗</a>
         <span>•</span>
         <button type="button" class="footer-admin-btn" onclick="window.app.switchTab('admin');">Панель управления</button>
     </footer>

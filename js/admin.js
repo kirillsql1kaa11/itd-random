@@ -6,6 +6,15 @@ class AdminManager {
         this.isDrawingMask = false;
         this.maskHistory = [];
         this.selectedAuthor = null;
+
+        this.postsPage = 1;
+        this.postsPerPage = 8;
+        this.postsSearch = '';
+        this.cachedPosts = [];
+
+        this.authorsPage = 1;
+        this.authorsPerPage = 10;
+        this.authorsSearch = '';
     }
 
     init() {
@@ -102,6 +111,48 @@ class AdminManager {
                 window.app.switchTab('home');
             });
         }
+
+        const postsSearchInput = document.getElementById('admin-posts-search-input');
+        if (postsSearchInput) {
+            postsSearchInput.addEventListener('input', (e) => {
+                this.postsSearch = (e.target.value || '').trim().toLowerCase();
+                this.postsPage = 1;
+                this.renderPostsTable();
+            });
+        }
+
+        document.getElementById('btn-posts-prev')?.addEventListener('click', () => {
+            if (this.postsPage > 1) {
+                this.postsPage--;
+                this.renderPostsTable();
+            }
+        });
+
+        document.getElementById('btn-posts-next')?.addEventListener('click', () => {
+            this.postsPage++;
+            this.renderPostsTable();
+        });
+
+        const authorsSearchInput = document.getElementById('admin-authors-search-input');
+        if (authorsSearchInput) {
+            authorsSearchInput.addEventListener('input', (e) => {
+                this.authorsSearch = (e.target.value || '').trim().toLowerCase();
+                this.authorsPage = 1;
+                this.renderAuthorsList();
+            });
+        }
+
+        document.getElementById('btn-authors-prev')?.addEventListener('click', () => {
+            if (this.authorsPage > 1) {
+                this.authorsPage--;
+                this.renderAuthorsList();
+            }
+        });
+
+        document.getElementById('btn-authors-next')?.addEventListener('click', () => {
+            this.authorsPage++;
+            this.renderAuthorsList();
+        });
     }
 
     setupPasswordSettings() {
@@ -597,9 +648,6 @@ class AdminManager {
     }
 
     async refreshPostsTable() {
-        const tableBody = document.getElementById('admin-posts-tbody');
-        if (!tableBody) return;
-
         let posts = [];
         if (window.supabaseService?.isConfigured) {
             const remotePosts = await window.supabaseService.fetchRemotePosts();
@@ -614,96 +662,178 @@ class AdminManager {
         const badge = document.getElementById('admin-total-posts-badge');
         if (badge) badge.textContent = `${posts.length} постов`;
 
+        posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        this.cachedPosts = posts;
+        this.renderPostsTable();
+    }
+
+    renderPostsTable() {
+        const tableBody = document.getElementById('admin-posts-tbody');
+        if (!tableBody) return;
+
+        const posts = this.cachedPosts || [];
+        const query = (this.postsSearch || '').trim().toLowerCase();
+
+        const filtered = posts.filter(p => {
+            if (!query) return true;
+            const author = window.authorsManager.getById(p.correctAuthorId);
+            const authorName = (author?.name || p.correctAuthorId || '').toLowerCase();
+            const authorHandle = (author?.handle || '').toLowerCase();
+            const text = (p.postText || '').toLowerCase();
+            const hint = (p.hint || '').toLowerCase();
+            const tags = Array.isArray(p.tags) ? p.tags.join(' ').toLowerCase() : '';
+            return authorName.includes(query) || authorHandle.includes(query) || text.includes(query) || hint.includes(query) || tags.includes(query);
+        });
+
+        const totalItems = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / this.postsPerPage));
+        if (this.postsPage > totalPages) this.postsPage = totalPages;
+        if (this.postsPage < 1) this.postsPage = 1;
+
+        const startIdx = (this.postsPage - 1) * this.postsPerPage;
+        const endIdx = Math.min(totalItems, startIdx + this.postsPerPage);
+        const pagePosts = filtered.slice(startIdx, endIdx);
+
         tableBody.innerHTML = '';
-        if (posts.length === 0) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="table-empty">В базе пока нет постов. Добавьте первый скриншот выше!</td></tr>`;
-            return;
+        if (totalItems === 0) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="table-empty">${query ? 'По вашему запросу ничего не найдено' : 'В базе пока нет постов. Добавьте первый скриншот выше!'}</td></tr>`;
+        } else {
+            pagePosts.forEach((post, i) => {
+                const globalIdx = startIdx + i + 1;
+                const author = window.authorsManager.getById(post.correctAuthorId) || {
+                    name: post.correctAuthorId,
+                    handle: '@' + post.correctAuthorId
+                };
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="col-num">${globalIdx}</td>
+                    <td class="col-thumb">
+                        <img src="${post.screenshot}" alt="Thumb" class="post-table-thumb">
+                    </td>
+                    <td class="col-author">
+                        <div class="table-author-cell">
+                            <strong>${escapeHtml(author.name)}</strong>
+                            <small>${escapeHtml(author.handle)}</small>
+                        </div>
+                    </td>
+                    <td class="col-hint">${escapeHtml(post.hint || '—')}</td>
+                    <td class="col-actions">
+                        <button class="btn-action-icon test-btn" title="Протестировать вопрос">${window.Icons.target}</button>
+                        <button class="btn-action-icon edit-btn" title="Редактировать">${window.Icons.edit}</button>
+                        <button class="btn-action-icon del-btn" title="Удалить">${window.Icons.trash}</button>
+                    </td>
+                `;
+
+                tr.querySelector('.post-table-thumb').addEventListener('click', () => {
+                    window.gameEngine.toggleLightboxCustom(post.screenshot);
+                });
+                tr.querySelector('.test-btn').addEventListener('click', () => this.testQuestion(post));
+                tr.querySelector('.edit-btn').addEventListener('click', () => this.editPost(post));
+                tr.querySelector('.del-btn').addEventListener('click', () => this.deletePost(post.id));
+
+                tableBody.appendChild(tr);
+            });
         }
 
-        posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).forEach((post, idx) => {
-            const author = window.authorsManager.getById(post.correctAuthorId) || {
-                name: post.correctAuthorId,
-                handle: '@' + post.correctAuthorId
-            };
+        const infoEl = document.getElementById('admin-posts-page-info');
+        const pageNumEl = document.getElementById('posts-page-number');
+        const prevBtn = document.getElementById('btn-posts-prev');
+        const nextBtn = document.getElementById('btn-posts-next');
 
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td class="col-num">${idx + 1}</td>
-                <td class="col-thumb">
-                    <img src="${post.screenshot}" alt="Thumb" class="post-table-thumb">
-                </td>
-                <td class="col-author">
-                    <div class="table-author-cell">
-                        <strong>${escapeHtml(author.name)}</strong>
-                        <small>${escapeHtml(author.handle)}</small>
-                    </div>
-                </td>
-                <td class="col-hint">${escapeHtml(post.hint || '—')}</td>
-                <td class="col-actions">
-                    <button class="btn-action-icon test-btn" title="Протестировать вопрос">${window.Icons.target}</button>
-                    <button class="btn-action-icon edit-btn" title="Редактировать">${window.Icons.edit}</button>
-                    <button class="btn-action-icon del-btn" title="Удалить">${window.Icons.trash}</button>
-                </td>
-            `;
-
-            tr.querySelector('.post-table-thumb').addEventListener('click', () => {
-                window.gameEngine.toggleLightboxCustom(post.screenshot);
-            });
-            tr.querySelector('.test-btn').addEventListener('click', () => this.testQuestion(post));
-            tr.querySelector('.edit-btn').addEventListener('click', () => this.editPost(post));
-            tr.querySelector('.del-btn').addEventListener('click', () => this.deletePost(post.id));
-
-            tableBody.appendChild(tr);
-        });
+        if (infoEl) {
+            infoEl.textContent = totalItems === 0 ? '0 вопросов' : `Показано ${startIdx + 1}–${endIdx} из ${totalItems} вопросов`;
+        }
+        if (pageNumEl) {
+            pageNumEl.textContent = `${this.postsPage} / ${totalPages}`;
+        }
+        if (prevBtn) prevBtn.disabled = this.postsPage <= 1;
+        if (nextBtn) nextBtn.disabled = this.postsPage >= totalPages;
     }
 
     async refreshAuthorsList() {
+        this.renderAuthorsList();
+    }
+
+    renderAuthorsList() {
         const container = document.getElementById('admin-authors-list');
         if (!container) return;
 
-        const authors = window.authorsManager.getAll();
-        container.innerHTML = '';
+        const authors = window.authorsManager.getAll() || [];
+        const query = (this.authorsSearch || '').trim().toLowerCase();
 
-        if (authors.length === 0) {
-            container.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">Авторов в базе пока нет. Нажмите «+ Добавить автора».</div>`;
-            return;
+        const filtered = authors.filter(a => {
+            if (!query) return true;
+            const name = (a.name || '').toLowerCase();
+            const handle = (a.handle || '').toLowerCase();
+            const bio = (a.bio || a.style || '').toLowerCase();
+            const badge = (a.badge || '').toLowerCase();
+            return name.includes(query) || handle.includes(query) || bio.includes(query) || badge.includes(query);
+        });
+
+        const totalItems = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / this.authorsPerPage));
+        if (this.authorsPage > totalPages) this.authorsPage = totalPages;
+        if (this.authorsPage < 1) this.authorsPage = 1;
+
+        const startIdx = (this.authorsPage - 1) * this.authorsPerPage;
+        const endIdx = Math.min(totalItems, startIdx + this.authorsPerPage);
+        const pageAuthors = filtered.slice(startIdx, endIdx);
+
+        container.innerHTML = '';
+        if (totalItems === 0) {
+            container.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">${query ? 'Авторы по запросу не найдены' : 'Авторов в базе пока нет. Нажмите «+ Добавить автора».'}</div>`;
+        } else {
+            pageAuthors.forEach(a => {
+                const card = document.createElement('div');
+                card.className = 'admin-author-item';
+                card.innerHTML = `
+                    <div class="aai-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?')}</div>
+                    <div class="aai-info">
+                        <div class="aai-name-row">
+                            <strong>${escapeHtml(a.name)}</strong>
+                            ${a.verified ? `<span class="verified-icon">${window.Icons.check}</span>` : ''}
+                            ${a.badge ? `<span class="badge-tag">${escapeHtml(a.badge)}</span>` : ''}
+                        </div>
+                        <span class="aai-handle">${escapeHtml(a.handle || '@' + a.id)}</span>
+                        <p class="aai-bio">${escapeHtml(a.bio || a.style || '')}</p>
+                    </div>
+                    <div class="aai-actions">
+                        <button type="button" class="btn-edit-author" title="Редактировать автора">${window.Icons.edit}</button>
+                        <button type="button" class="btn-del-author" title="Удалить автора">${window.Icons.cross}</button>
+                    </div>
+                `;
+
+                card.querySelector('.btn-edit-author').addEventListener('click', () => {
+                    this.openEditAuthorModal(a);
+                });
+
+                card.querySelector('.btn-del-author').addEventListener('click', async () => {
+                    if (confirm(`Удалить автора "${a.name}" из базы?`)) {
+                        await window.authorsManager.deleteAuthor(a.id);
+                        await this.refreshAuthorsList();
+                        await this.refreshAdminStats();
+                        window.app.showToast('Автор удален', 'info');
+                    }
+                });
+
+                container.appendChild(card);
+            });
         }
 
-        authors.forEach(a => {
-            const card = document.createElement('div');
-            card.className = 'admin-author-item';
-            card.innerHTML = `
-                <div class="aai-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?')}</div>
-                <div class="aai-info">
-                    <div class="aai-name-row">
-                        <strong>${escapeHtml(a.name)}</strong>
-                        ${a.verified ? `<span class="verified-icon">${window.Icons.check}</span>` : ''}
-                        ${a.badge ? `<span class="badge-tag">${escapeHtml(a.badge)}</span>` : ''}
-                    </div>
-                    <span class="aai-handle">${escapeHtml(a.handle || '@' + a.id)}</span>
-                    <p class="aai-bio">${escapeHtml(a.bio || a.style || '')}</p>
-                </div>
-                <div class="aai-actions">
-                    <button type="button" class="btn-edit-author" title="Редактировать автора">${window.Icons.edit}</button>
-                    <button type="button" class="btn-del-author" title="Удалить автора">${window.Icons.cross}</button>
-                </div>
-            `;
+        const infoEl = document.getElementById('admin-authors-page-info');
+        const pageNumEl = document.getElementById('authors-page-number');
+        const prevBtn = document.getElementById('btn-authors-prev');
+        const nextBtn = document.getElementById('btn-authors-next');
 
-            card.querySelector('.btn-edit-author').addEventListener('click', () => {
-                this.openEditAuthorModal(a);
-            });
-
-            card.querySelector('.btn-del-author').addEventListener('click', async () => {
-                if (confirm(`Удалить автора "${a.name}" из базы?`)) {
-                    await window.authorsManager.deleteAuthor(a.id);
-                    await this.refreshAuthorsList();
-                    await this.refreshAdminStats();
-                    window.app.showToast('Автор удален', 'info');
-                }
-            });
-
-            container.appendChild(card);
-        });
+        if (infoEl) {
+            infoEl.textContent = totalItems === 0 ? '0 авторов' : `Показано ${startIdx + 1}–${endIdx} из ${totalItems} авторов`;
+        }
+        if (pageNumEl) {
+            pageNumEl.textContent = `${this.authorsPage} / ${totalPages}`;
+        }
+        if (prevBtn) prevBtn.disabled = this.authorsPage <= 1;
+        if (nextBtn) nextBtn.disabled = this.authorsPage >= totalPages;
     }
 
     async savePost() {

@@ -31,18 +31,28 @@ class GameEngine {
     async start(mode = 'blitz') {
         this.mode = mode;
         let allPosts = [];
-        if (window.supabaseService?.isConfigured) {
-            try {
-                const remote = await window.supabaseService.fetchRemotePosts();
-                if (Array.isArray(remote) && remote.length > 0) {
-                    allPosts = remote;
-                }
-            } catch (e) {
-                console.warn(e);
+
+        try {
+            const secureQuestions = await window.supabaseService.getQuizQuestions(mode);
+            if (Array.isArray(secureQuestions) && secureQuestions.length > 0) {
+                allPosts = secureQuestions;
             }
+        } catch (e) {
         }
+
         if (allPosts.length === 0) {
-            allPosts = await window.quizDB.getAllPosts();
+            if (window.supabaseService?.isConfigured) {
+                try {
+                    const remote = await window.supabaseService.fetchRemotePosts();
+                    if (Array.isArray(remote) && remote.length > 0) {
+                        allPosts = remote;
+                    }
+                } catch (e) {
+                }
+            }
+            if (allPosts.length === 0) {
+                allPosts = await window.quizDB.getAllPosts();
+            }
         }
 
         if (!allPosts || allPosts.length === 0) {
@@ -51,9 +61,12 @@ class GameEngine {
             return;
         }
 
-        this.postsPool = [...allPosts].sort(() => Math.random() - 0.5);
-        if (mode === 'blitz') {
-            this.postsPool = this.postsPool.slice(0, 10);
+        this.postsPool = [...allPosts];
+        if (!this.postsPool[0]?.qToken) {
+            this.postsPool.sort(() => Math.random() - 0.5);
+            if (mode === 'blitz') {
+                this.postsPool = this.postsPool.slice(0, 10);
+            }
         }
 
         this.currentIndex = 0;
@@ -98,17 +111,22 @@ class GameEngine {
         this.isAnswered = false;
         this.hintUsed = false;
 
-        const correctAuthor = window.authorsManager.getById(this.currentPost.correctAuthorId) || {
-            id: this.currentPost.correctAuthorId,
-            name: this.currentPost.correctAuthorId,
-            handle: '@' + this.currentPost.correctAuthorId,
-            avatarColor: 'linear-gradient(135deg, #0080ff, #00ba7c)',
-            avatarText: '?'
-        };
+        if (Array.isArray(this.currentPost.options) && this.currentPost.options.length > 0) {
+            this.currentOptions = this.currentPost.options;
+        } else {
+            const correctAuthorId = this.currentPost.correctAuthorId;
+            const correctAuthor = window.authorsManager.getById(correctAuthorId) || {
+                id: correctAuthorId,
+                name: correctAuthorId,
+                handle: '@' + correctAuthorId,
+                avatarColor: 'linear-gradient(135deg, #0080ff, #00ba7c)',
+                avatarText: '?'
+            };
 
-        const distractors = window.authorsManager.getRandomDistractors(this.currentPost.correctAuthorId, 3);
-        const allFour = [correctAuthor, ...distractors].sort(() => Math.random() - 0.5);
-        this.currentOptions = allFour;
+            const distractors = window.authorsManager.getRandomDistractors(correctAuthorId, 3);
+            const allFour = [correctAuthor, ...distractors].sort(() => Math.random() - 0.5);
+            this.currentOptions = allFour;
+        }
 
         this.renderQuestionUI();
         this.startTimer();
@@ -232,24 +250,52 @@ class GameEngine {
         }, 100);
     }
 
-    handleAnswer(chosenAuthorId, chosenBtn = null) {
+    async handleAnswer(chosenAuthorId, chosenBtn = null) {
         if (this.isAnswered) return;
         this.isAnswered = true;
         clearInterval(this.timer);
 
-        const correctId = this.currentPost.correctAuthorId;
-        const isCorrect = chosenAuthorId === correctId;
-        const correctAuthor = window.authorsManager.getById(correctId) || {
-            id: correctId,
-            name: correctId,
-            handle: '@' + correctId,
-            bio: 'Автор в соцсети ИТД'
-        };
-
         const buttons = document.querySelectorAll('.quiz-option-btn');
         buttons.forEach(btn => {
             btn.disabled = true;
-            if (btn.dataset.authorId === correctId) {
+        });
+        if (chosenBtn) {
+            chosenBtn.classList.add('loading');
+        }
+
+        let isCorrect = false;
+        let correctId = null;
+        let correctAuthor = null;
+
+        if (this.currentPost.qToken) {
+            try {
+                const verifyRes = await window.supabaseService.verifyAnswer(this.currentPost.qToken, chosenAuthorId, this.currentPost.id);
+                if (verifyRes) {
+                    isCorrect = Boolean(verifyRes.isCorrect);
+                    correctId = verifyRes.correctAuthorId;
+                    correctAuthor = verifyRes.correctAuthor;
+                }
+            } catch (err) {
+            }
+        }
+
+        if (!correctAuthor) {
+            correctId = this.currentPost.correctAuthorId;
+            isCorrect = chosenAuthorId === correctId;
+            correctAuthor = window.authorsManager.getById(correctId) || {
+                id: correctId,
+                name: correctId,
+                handle: '@' + correctId,
+                bio: 'Автор в соцсети ИТД'
+            };
+        }
+
+        if (chosenBtn) {
+            chosenBtn.classList.remove('loading');
+        }
+
+        buttons.forEach(btn => {
+            if (correctId && btn.dataset.authorId === correctId) {
                 btn.classList.add('correct');
             } else if (chosenAuthorId && btn.dataset.authorId === chosenAuthorId && !isCorrect) {
                 btn.classList.add('wrong');
