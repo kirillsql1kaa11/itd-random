@@ -354,6 +354,30 @@ class App {
 
         this.bindSuggestPostModal();
 
+        document.getElementById('btn-copy-card')?.addEventListener('click', async () => {
+            const data = window.gameEngine?.lastResult;
+            if (!data) return;
+            try {
+                const status = await window.ShareCard.copyImage(data);
+                this.showToast(status === 'copied' ? 'Картинка скопирована в буфер обмена' : 'Картинка сохранена на устройство', 'success');
+            } catch (err) {
+                this.showToast('Не удалось скопировать картинку', 'error');
+            }
+        });
+
+        document.getElementById('btn-share-itd')?.addEventListener('click', async () => {
+            const data = window.gameEngine?.lastResult;
+            if (!data) return;
+            try {
+                const status = await window.ShareCard.shareToItd(data);
+                if (status === 'downloaded') {
+                    this.showToast('Картинка сохранена, текст скопирован. Прикрепите её к посту в ИТД', 'success');
+                }
+            } catch (err) {
+                this.showToast('Не удалось поделиться результатом', 'error');
+            }
+        });
+
         document.getElementById('btn-share-results')?.addEventListener('click', () => {
             const score = document.getElementById('sum-score')?.textContent || '0';
             const streak = document.getElementById('sum-max-streak')?.textContent || '0';
@@ -460,16 +484,21 @@ class App {
         });
     }
 
-    loadSuggestImage(file) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            this.suggestedScreenshotDataUrl = e.target.result;
+    async loadSuggestImage(file) {
+        if (!file || !file.type.startsWith('image/')) {
+            this.showToast('Выберите файл изображения', 'warning');
+            return;
+        }
+        try {
+            const compressed = await window.ImageUtil.compressFile(file);
+            this.suggestedScreenshotDataUrl = compressed;
             const img = document.getElementById('suggest-preview-img');
-            if (img) img.src = e.target.result;
+            if (img) img.src = compressed;
             document.getElementById('suggest-dropzone')?.classList.add('hidden');
             document.getElementById('suggest-preview-container')?.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
+        } catch (err) {
+            this.showToast('Не удалось обработать изображение', 'error');
+        }
     }
 
     openSuggestPostModal() {

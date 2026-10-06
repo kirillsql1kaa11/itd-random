@@ -732,6 +732,23 @@ input:focus, textarea:focus, select:focus {
     flex-wrap: wrap;
 }
 
+.summary-actions-row + .summary-actions-row {
+    margin-top: 12px;
+}
+
+.share-card-preview {
+    display: block;
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    margin: 0 auto 20px;
+    border-radius: 16px;
+    border: 1px solid var(--border-subtle);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    background: var(--bg-secondary);
+}
+
+
 .btn-secondary-action {
     background: var(--bg-secondary);
     border: 1px solid var(--border-subtle);

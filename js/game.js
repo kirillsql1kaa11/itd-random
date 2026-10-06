@@ -453,6 +453,16 @@ class GameEngine {
         document.getElementById('sum-accuracy').textContent = `${percent}% (${correctCount}/${total})`;
         document.getElementById('sum-rank').textContent = this.calculateRank(percent, this.score);
 
+        this.lastResult = {
+            nickname: this.nickname,
+            mode: this.mode,
+            score: this.score,
+            streak: this.maxStreak,
+            accuracy: `${percent}% (${correctCount}/${total})`,
+            rank: this.calculateRank(percent, this.score)
+        };
+        this.renderShareCardPreview();
+
         const historyContainer = document.getElementById('summary-history-list');
         historyContainer.innerHTML = '';
         this.history.forEach((item) => {
@@ -469,6 +479,16 @@ class GameEngine {
             `;
             historyContainer.appendChild(row);
         });
+    }
+
+    async renderShareCardPreview() {
+        const img = document.getElementById('share-card-preview');
+        if (!img || !this.lastResult || !window.ShareCard) return;
+        try {
+            const canvas = await window.ShareCard.render(this.lastResult);
+            img.src = canvas.toDataURL('image/png');
+        } catch (e) {
+        }
     }
 
     calculateRank(pct, score) {

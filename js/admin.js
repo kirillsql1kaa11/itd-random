@@ -517,16 +517,18 @@ class AdminManager {
             const previewWrapper = document.getElementById('admin-preview-container');
             const dropzone = document.getElementById('admin-dropzone');
 
-            canvas.width = img.width;
-            canvas.height = img.height;
+            const size = window.ImageUtil.scaledSize(img.width, img.height);
+            canvas.width = size.width;
+            canvas.height = size.height;
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, size.width, size.height);
 
             dropzone.classList.add('hidden');
             previewWrapper.classList.remove('hidden');
 
             this.maskHistory = [ctx.getImageData(0, 0, canvas.width, canvas.height)];
-            this.currentScreenshotDataUrl = canvas.toDataURL('image/png');
+            this.currentScreenshotDataUrl = window.ImageUtil.canvasToDataUrl(canvas);
         };
         img.src = dataUrl;
     }
@@ -612,7 +614,7 @@ class AdminManager {
                 ctx.restore();
 
                 this.maskHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
-                this.currentScreenshotDataUrl = canvas.toDataURL('image/png');
+                this.currentScreenshotDataUrl = window.ImageUtil.canvasToDataUrl(canvas);
                 window.app.showToast('Область скрыта', 'info');
             }
         };
@@ -629,7 +631,7 @@ class AdminManager {
                     this.maskHistory.pop();
                     const prev = this.maskHistory[this.maskHistory.length - 1];
                     ctx.putImageData(prev, 0, 0);
-                    this.currentScreenshotDataUrl = canvas.toDataURL('image/png');
+                    this.currentScreenshotDataUrl = window.ImageUtil.canvasToDataUrl(canvas);
                     window.app.showToast('Действие отменено', 'info');
                 }
             });
@@ -858,7 +860,7 @@ class AdminManager {
             id: this.editingPostId || ('post_' + Date.now()),
             correctAuthorId: authorId,
             postText: postText,
-            screenshot: this.currentScreenshotDataUrl,
+            screenshot: await window.ImageUtil.compressDataUrl(this.currentScreenshotDataUrl),
             hint: hint,
             difficulty: difficulty,
             tags: tags,
