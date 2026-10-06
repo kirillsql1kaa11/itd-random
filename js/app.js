@@ -82,6 +82,12 @@ class App {
             window.gameEngine.next();
         });
 
+        const handleFinishPractice = () => {
+            window.gameEngine.finishPractice();
+        };
+        document.getElementById('btn-quiz-finish')?.addEventListener('click', handleFinishPractice);
+        document.getElementById('btn-finish-practice')?.addEventListener('click', handleFinishPractice);
+
         document.getElementById('btn-play-again')?.addEventListener('click', () => {
             this.switchTab('home');
         });

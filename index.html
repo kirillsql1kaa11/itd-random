@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Unbounded:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20261006a">
+    <link rel="stylesheet" href="css/style.css?v=20261006b">
 </head>
 <body>
 
@@ -154,6 +154,10 @@
                             Пост 1 / 10
                         </div>
                     </div>
+                    <button class="btn-finish-quiz-pill hidden" id="btn-quiz-finish" title="Завершить игру и сохранить результат">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
+                        <span>Закончить</span>
+                    </button>
                 </div>
             </div>
 
@@ -164,7 +168,7 @@
             <div class="post-preview-card" id="post-screenshot-container" title="Нажмите, чтобы приблизить скриншот">
                 <img id="post-screenshot-img" src="" alt="Скриншот поста ИТД">
                 <div class="screenshot-zoom-hint">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     <span>Зум [Z]</span>
                 </div>
             </div>
@@ -195,9 +199,14 @@
                 </div>
             </div>
 
-            <div class="quiz-controls-row">
+            <div class="quiz-controls-row" id="quiz-controls-row">
+                <button class="btn-finish-practice hidden" id="btn-finish-practice">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+                    <span>Закончить игру</span>
+                </button>
                 <button class="btn-primary-action hidden" id="btn-next-question">
-                    Следующий пост ➔ <span style="font-size:11px; opacity:0.6;">[Пробел]</span>
+                    <span>Следующий пост ➔</span>
+                    <span style="font-size:11px; opacity:0.6;">[Пробел]</span>
                 </button>
             </div>
         </section>
@@ -754,17 +763,17 @@
 
     <canvas id="confetti-canvas"></canvas>
 
-    <script src="js/icons.js?v=20261006a"></script>
-    <script src="js/sound.js?v=20261006a"></script>
-    <script src="js/imageutil.js?v=20261006a"></script>
-    <script src="js/sharecard.js?v=20261006a"></script>
-    <script src="js/config.js?v=20261006a"></script>
-    <script src="js/supabase.js?v=20261006a"></script>
-    <script src="js/authors.js?v=20261006a"></script>
-    <script src="js/presets.js?v=20261006a"></script>
-    <script src="js/db.js?v=20261006a"></script>
-    <script src="js/game.js?v=20261006a"></script>
-    <script src="js/admin.js?v=20261006a"></script>
-    <script src="js/app.js?v=20261006a"></script>
+    <script src="js/icons.js?v=20261006b"></script>
+    <script src="js/sound.js?v=20261006b"></script>
+    <script src="js/imageutil.js?v=20261006b"></script>
+    <script src="js/sharecard.js?v=20261006b"></script>
+    <script src="js/config.js?v=20261006b"></script>
+    <script src="js/supabase.js?v=20261006b"></script>
+    <script src="js/authors.js?v=20261006b"></script>
+    <script src="js/presets.js?v=20261006b"></script>
+    <script src="js/db.js?v=20261006b"></script>
+    <script src="js/game.js?v=20261006b"></script>
+    <script src="js/admin.js?v=20261006b"></script>
+    <script src="js/app.js?v=20261006b"></script>
 </body>
 </html>

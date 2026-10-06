@@ -196,6 +196,20 @@ class GameEngine {
         const nextBtn = document.getElementById('btn-next-question');
         nextBtn.classList.add('hidden');
 
+        const finishTopBtn = document.getElementById('btn-quiz-finish');
+        if (finishTopBtn) {
+            if (this.mode === 'practice') {
+                finishTopBtn.classList.remove('hidden');
+            } else {
+                finishTopBtn.classList.add('hidden');
+            }
+        }
+
+        const finishPracticeBtn = document.getElementById('btn-finish-practice');
+        if (finishPracticeBtn) {
+            finishPracticeBtn.classList.add('hidden');
+        }
+
         const revealCard = document.getElementById('author-reveal-card');
         revealCard.classList.add('hidden');
         revealCard.className = 'author-reveal-card hidden';
@@ -401,6 +415,15 @@ class GameEngine {
         const nextBtn = document.getElementById('btn-next-question');
         nextBtn.classList.remove('hidden');
         nextBtn.focus();
+
+        const finishPracticeBtn = document.getElementById('btn-finish-practice');
+        if (finishPracticeBtn) {
+            if (this.mode === 'practice') {
+                finishPracticeBtn.classList.remove('hidden');
+            } else {
+                finishPracticeBtn.classList.add('hidden');
+            }
+        }
     }
 
     handleTimeout() {
@@ -470,8 +493,22 @@ class GameEngine {
         this.loadCurrentQuestion();
     }
 
+    finishPractice() {
+        if (!this.history || this.history.length === 0) {
+            window.app.showToast('Ответьте хотя бы на один пост перед завершением', 'warning');
+            return;
+        }
+        this.finishGame();
+    }
+
     async finishGame() {
         clearInterval(this.timer);
+
+        const finishTopBtn = document.getElementById('btn-quiz-finish');
+        if (finishTopBtn) finishTopBtn.classList.add('hidden');
+        const finishPracticeBtn = document.getElementById('btn-finish-practice');
+        if (finishPracticeBtn) finishPracticeBtn.classList.add('hidden');
+
         window.soundFX.playWin();
         this.triggerConfetti();
 
@@ -584,6 +621,8 @@ class GameEngine {
                     e.preventDefault();
                     this.next();
                 }
+            } else if (e.key === 'Escape' && this.mode === 'practice' && this.history && this.history.length > 0) {
+                this.finishPractice();
             } else if (e.key === 'h' || e.key === 'H' || e.key === 'р' || e.key === 'Р') {
                 this.useHint();
             } else if (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я') {
