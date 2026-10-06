@@ -98,6 +98,32 @@ function verifyQuestionToken(token) {
     }
 }
 
+function createSessionToken(sessionData) {
+    const payload = Buffer.from(JSON.stringify(sessionData)).toString('base64url');
+    const sig = createHmacHash(`session:${payload}`);
+    return `${payload}.${sig}`;
+}
+
+function verifySessionToken(token) {
+    if (!token || typeof token !== 'string') return null;
+    const parts = token.split('.');
+    if (parts.length !== 2) return null;
+    const [payloadStr, sig] = parts;
+    const expectedSig = createHmacHash(`session:${payloadStr}`);
+
+    if (!safeEqual(sig, expectedSig)) {
+        return null;
+    }
+
+    try {
+        const data = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf-8'));
+        if (Date.now() > (data.exp || 0)) return null;
+        return data;
+    } catch {
+        return null;
+    }
+}
+
 module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -187,12 +213,26 @@ module.exports = async (req, res) => {
                 };
             });
 
-            return res.status(200).json({ questions, total: questions.length });
+            const sessionId = 's_' + crypto.randomBytes(12).toString('hex');
+            const sessionData = {
+                sid: sessionId,
+                mode,
+                score: 0,
+                streak: 0,
+                maxStreak: 0,
+                correctCount: 0,
+                totalCount: 0,
+                answered: [],
+                exp: Date.now() + 30 * 60 * 1000
+            };
+            const sessionToken = createSessionToken(sessionData);
+
+            return res.status(200).json({ questions, total: questions.length, sessionToken });
         }
 
         if (action === 'check_answer' || req.method === 'POST') {
             const body = req.body || {};
-            const { qToken, selectedAuthorId } = body;
+            const { qToken, selectedAuthorId, sessionToken, timeLeft, hintUsed } = body;
 
             if (!qToken || !selectedAuthorId) {
                 return res.status(400).json({ error: 'qToken and selectedAuthorId are required' });
@@ -205,6 +245,45 @@ module.exports = async (req, res) => {
 
             const selectedId = String(selectedAuthorId).trim();
             const isCorrect = safeEqual(createAnswerHash(tokenData.id, selectedId), tokenData.ansHash);
+
+            let updatedSessionToken = null;
+            let serverScore = null;
+            let serverStreak = null;
+            let pointsEarned = 0;
+
+            if (sessionToken) {
+                const session = verifySessionToken(sessionToken);
+                if (session && !session.submitted) {
+                    if (!Array.isArray(session.answered)) session.answered = [];
+                    if (!session.answered.includes(tokenData.id)) {
+                        session.answered.push(tokenData.id);
+                        session.totalCount = (session.totalCount || 0) + 1;
+
+                        if (isCorrect) {
+                            session.correctCount = (session.correctCount || 0) + 1;
+                            session.streak = (session.streak || 0) + 1;
+                            if (session.streak > (session.maxStreak || 0)) {
+                                session.maxStreak = session.streak;
+                            }
+                            const safeTimeLeft = Math.max(0, Math.min(20, Number(timeLeft) || 0));
+                            const speedBonus = Math.round((safeTimeLeft / 20) * 50);
+                            const hintPen = Boolean(hintUsed) ? 30 : 0;
+                            let mult = 1.0;
+                            if (session.streak >= 8) mult = 3.0;
+                            else if (session.streak >= 5) mult = 2.0;
+                            else if (session.streak >= 3) mult = 1.5;
+                            pointsEarned = Math.max(20, Math.round((100 + speedBonus - hintPen) * mult));
+                            session.score = (session.score || 0) + pointsEarned;
+                        } else {
+                            session.streak = 0;
+                            pointsEarned = 0;
+                        }
+                    }
+                    updatedSessionToken = createSessionToken(session);
+                    serverScore = session.score;
+                    serverStreak = session.streak;
+                }
+            }
 
             let correctAuthorId = isCorrect ? selectedId : null;
             if (!isCorrect) {
@@ -251,8 +330,59 @@ module.exports = async (req, res) => {
 
             return res.status(200).json({
                 isCorrect,
+                pointsEarned,
                 correctAuthorId,
-                correctAuthor: authorInfo
+                correctAuthor: authorInfo,
+                sessionToken: updatedSessionToken || sessionToken || null,
+                serverScore,
+                serverStreak
+            });
+        }
+
+        if (action === 'submit_score') {
+            const body = req.body || {};
+            const { sessionToken, nickname } = body;
+
+            if (!sessionToken) {
+                return res.status(400).json({ error: 'Session token is required' });
+            }
+
+            const session = verifySessionToken(sessionToken);
+            if (!session) {
+                return res.status(400).json({ error: 'Invalid or expired session' });
+            }
+
+            if (session.submitted) {
+                return res.status(400).json({ error: 'Session already submitted' });
+            }
+
+            if (!session.totalCount || session.totalCount < 1) {
+                return res.status(400).json({ error: 'No answers recorded in session' });
+            }
+
+            session.submitted = true;
+            const percent = Math.round((session.correctCount / session.totalCount) * 100);
+            const cleanNick = (String(nickname || 'Аноним').trim() || 'Аноним').slice(0, 32);
+
+            const record = {
+                nickname: cleanNick,
+                score: Number(session.score) || 0,
+                streak: Number(session.maxStreak) || 0,
+                accuracy: percent,
+                mode: session.mode || 'blitz'
+            };
+
+            await fetchSupabase('leaderboard', {
+                method: 'POST',
+                body: record
+            });
+
+            return res.status(200).json({
+                ok: true,
+                score: record.score,
+                streak: record.streak,
+                accuracy: percent,
+                record
             });
         }
 

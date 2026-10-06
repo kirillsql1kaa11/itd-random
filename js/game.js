@@ -30,18 +30,20 @@ class GameEngine {
 
     async start(mode = 'blitz') {
         this.mode = mode;
+        this.sessionToken = null;
         let allPosts = [];
 
         try {
             const secureQuestions = await window.supabaseService.getQuizQuestions(mode);
             if (Array.isArray(secureQuestions) && secureQuestions.length > 0) {
                 allPosts = secureQuestions;
+                this.sessionToken = window.supabaseService?.sessionToken || null;
             }
         } catch (e) {
         }
 
         if (allPosts.length === 0) {
-            if (window.supabaseService?.isConfigured) {
+            if (window.supabaseService?.isConfigured && typeof window.supabaseService.fetchRemotePosts === 'function') {
                 try {
                     const remote = await window.supabaseService.fetchRemotePosts();
                     if (Array.isArray(remote) && remote.length > 0) {
@@ -285,14 +287,33 @@ class GameEngine {
         let isCorrect = false;
         let correctId = null;
         let correctAuthor = null;
+        let serverEarned = null;
 
         if (this.currentPost.qToken) {
             try {
-                const verifyRes = await window.supabaseService.verifyAnswer(this.currentPost.qToken, chosenAuthorId, this.currentPost.id);
+                const verifyRes = await window.supabaseService.verifyAnswer(
+                    this.currentPost.qToken,
+                    chosenAuthorId,
+                    this.currentPost.id,
+                    { timeLeft: this.timeLeft, hintUsed: this.hintUsed }
+                );
                 if (verifyRes) {
                     isCorrect = Boolean(verifyRes.isCorrect);
                     correctId = verifyRes.correctAuthorId;
                     correctAuthor = verifyRes.correctAuthor;
+                    if (verifyRes.sessionToken) {
+                        this.sessionToken = verifyRes.sessionToken;
+                    }
+                    if (typeof verifyRes.serverScore === 'number') {
+                        this.score = verifyRes.serverScore;
+                    }
+                    if (typeof verifyRes.serverStreak === 'number') {
+                        this.streak = verifyRes.serverStreak;
+                        if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+                    }
+                    if (typeof verifyRes.pointsEarned === 'number') {
+                        serverEarned = verifyRes.pointsEarned;
+                    }
                 }
             } catch (err) {
             }
@@ -322,16 +343,17 @@ class GameEngine {
         });
 
         if (isCorrect) {
-            this.streak++;
-            if (this.streak > this.maxStreak) this.maxStreak = this.streak;
-
             const basePoints = 100;
             const speedBonus = Math.round((Math.max(0, this.timeLeft) / this.maxTime) * 50);
             const hintPenalty = this.hintUsed ? 30 : 0;
             const multiplier = this.getStreakMultiplier();
-            const earned = Math.max(20, Math.round((basePoints + speedBonus - hintPenalty) * multiplier));
-
-            this.score += earned;
+            let earned = serverEarned;
+            if (typeof earned !== 'number') {
+                this.streak++;
+                if (this.streak > this.maxStreak) this.maxStreak = this.streak;
+                earned = Math.max(20, Math.round((basePoints + speedBonus - hintPenalty) * multiplier));
+                this.score += earned;
+            }
 
             if (this.streak % 3 === 0 && this.streak > 0) {
                 window.soundFX.playStreak();
@@ -343,7 +365,9 @@ class GameEngine {
 
             this.showAuthorReveal(correctAuthor, true, earned);
         } else {
-            this.streak = 0;
+            if (typeof serverEarned !== 'number') {
+                this.streak = 0;
+            }
             window.soundFX.playWrong();
 
             if (this.mode === 'survival') {
@@ -461,7 +485,8 @@ class GameEngine {
             score: this.score,
             streak: this.maxStreak,
             accuracy: percent,
-            mode: this.mode
+            mode: this.mode,
+            sessionToken: this.sessionToken
         });
 
         document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));

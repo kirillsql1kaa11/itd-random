@@ -77,6 +77,28 @@ def verify_question_token(token):
     except Exception:
         return None
 
+def create_session_token(session_data):
+    payload = base64.urlsafe_b64encode(json.dumps(session_data).encode('utf-8')).decode('utf-8').rstrip('=')
+    sig = hmac.new(SECRET, f"session:{payload}".encode('utf-8'), hashlib.sha256).hexdigest()
+    return f"{payload}.{sig}"
+
+def verify_session_token(token):
+    if not token or '.' not in token:
+        return None
+    payload_str, sig = token.split('.', 1)
+    expected_sig = hmac.new(SECRET, f"session:{payload_str}".encode('utf-8'), hashlib.sha256).hexdigest()
+    if not safe_equal(sig, expected_sig):
+        return None
+    try:
+        pad = len(payload_str) % 4
+        padded = payload_str + ('=' * (4 - pad) if pad else '')
+        data = json.loads(base64.urlsafe_b64decode(padded.encode('utf-8')).decode('utf-8'))
+        if time.time() > data.get('exp', 0):
+            return None
+        return data
+    except Exception:
+        return None
+
 def password_fingerprint(stored_password):
     return hmac.new(SECRET, f"pwf:{stored_password}".encode('utf-8'), hashlib.sha256).hexdigest()[:32]
 
@@ -248,7 +270,21 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 'qToken': q_token
             })
 
-        self.send_json(200, {'questions': questions, 'total': len(questions)})
+        session_id = f"s_{os.urandom(12).hex()}"
+        session_data = {
+            'sid': session_id,
+            'mode': mode,
+            'score': 0,
+            'streak': 0,
+            'maxStreak': 0,
+            'correctCount': 0,
+            'totalCount': 0,
+            'answered': [],
+            'exp': int(time.time()) + 1800
+        }
+        session_token = create_session_token(session_data)
+
+        self.send_json(200, {'questions': questions, 'total': len(questions), 'sessionToken': session_token})
 
     def handle_api_quiz_post(self, parsed, body):
         action = body.get('action') or urllib.parse.parse_qs(parsed.query).get('action', ['check_answer'])[0]
@@ -267,6 +303,48 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
             selected_clean = str(selected_id).strip()
             is_correct = safe_equal(create_answer_hash(token_data.get('id'), selected_clean), token_data.get('ansHash'))
+
+            session_token = body.get('sessionToken')
+            time_left = body.get('timeLeft', 0)
+            hint_used = bool(body.get('hintUsed'))
+
+            updated_session_token = None
+            server_score = None
+            server_streak = None
+            points_earned = 0
+
+            if session_token:
+                session = verify_session_token(session_token)
+                if session and not session.get('submitted'):
+                    if not isinstance(session.get('answered'), list):
+                        session['answered'] = []
+                    post_id = token_data.get('id')
+                    if post_id not in session['answered']:
+                        session['answered'].append(post_id)
+                        session['totalCount'] = session.get('totalCount', 0) + 1
+                        if is_correct:
+                            session['correctCount'] = session.get('correctCount', 0) + 1
+                            session['streak'] = session.get('streak', 0) + 1
+                            if session['streak'] > session.get('maxStreak', 0):
+                                session['maxStreak'] = session['streak']
+                            safe_time = max(0.0, min(20.0, float(time_left or 0)))
+                            speed_bonus = round((safe_time / 20.0) * 50)
+                            hint_pen = 30 if hint_used else 0
+                            mult = 1.0
+                            if session['streak'] >= 8:
+                                mult = 3.0
+                            elif session['streak'] >= 5:
+                                mult = 2.0
+                            elif session['streak'] >= 3:
+                                mult = 1.5
+                            points_earned = max(20, round((100 + speed_bonus - hint_pen) * mult))
+                            session['score'] = session.get('score', 0) + points_earned
+                        else:
+                            session['streak'] = 0
+                            points_earned = 0
+                    updated_session_token = create_session_token(session)
+                    server_score = session.get('score')
+                    server_streak = session.get('streak')
 
             correct_id = selected_clean if is_correct else None
             if not is_correct:
@@ -300,8 +378,50 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
             self.send_json(200, {
                 'isCorrect': is_correct,
+                'pointsEarned': points_earned,
                 'correctAuthorId': correct_id,
-                'correctAuthor': author_info
+                'correctAuthor': author_info,
+                'sessionToken': updated_session_token or session_token,
+                'serverScore': server_score,
+                'serverStreak': server_streak
+            })
+            return
+
+        elif action == 'submit_score':
+            session_token = body.get('sessionToken')
+            nickname = body.get('nickname')
+            if not session_token:
+                self.send_json(400, {'error': 'Session token is required'})
+                return
+            session = verify_session_token(session_token)
+            if not session:
+                self.send_json(400, {'error': 'Invalid or expired session'})
+                return
+            if session.get('submitted'):
+                self.send_json(400, {'error': 'Session already submitted'})
+                return
+            total_count = session.get('totalCount', 0)
+            if total_count < 1:
+                self.send_json(400, {'error': 'No answers recorded in session'})
+                return
+            session['submitted'] = True
+            correct_count = session.get('correctCount', 0)
+            percent = round((correct_count / total_count) * 100) if total_count > 0 else 0
+            clean_nick = (str(nickname or 'Аноним').strip() or 'Аноним')[:32]
+            record = {
+                'nickname': clean_nick,
+                'score': int(session.get('score', 0)),
+                'streak': int(session.get('maxStreak', 0)),
+                'accuracy': percent,
+                'mode': session.get('mode', 'blitz')
+            }
+            fetch_supabase('leaderboard', method='POST', body=record)
+            self.send_json(200, {
+                'ok': True,
+                'score': record['score'],
+                'streak': record['streak'],
+                'accuracy': percent,
+                'record': record
             })
             return
 

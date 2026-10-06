@@ -244,7 +244,7 @@ module.exports = async (req, res) => {
             }
 
             const val = newPassword.trim();
-            await fetchSupabase('admin_settings', {
+            await fetchSupabase('admin_settings?on_conflict=key', {
                 method: 'POST',
                 prefer: 'resolution=merge-duplicates',
                 body: {

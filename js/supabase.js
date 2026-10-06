@@ -6,6 +6,7 @@ class SupabaseService {
         this.key = localStorage.getItem('supabase_key') || configKey;
         this.isConfigured = Boolean(this.url && this.key);
         this.adminToken = sessionStorage.getItem('itd_admin_token') || null;
+        this.sessionToken = null;
     }
 
     setCredentials(url, key) {
@@ -167,6 +168,7 @@ class SupabaseService {
         try {
             const data = await this.apiCall(`quiz?action=get_questions&mode=${encodeURIComponent(mode)}`);
             if (data && Array.isArray(data.questions) && data.questions.length > 0) {
+                this.sessionToken = data.sessionToken || null;
                 return data.questions;
             }
         } catch (e) {
@@ -174,13 +176,22 @@ class SupabaseService {
         return null;
     }
 
-    async verifyAnswer(qToken, selectedAuthorId, fallbackPostId = null) {
+    async verifyAnswer(qToken, selectedAuthorId, fallbackPostId = null, extra = {}) {
         try {
             const data = await this.apiCall('quiz?action=check_answer', {
                 method: 'POST',
-                body: { qToken, selectedAuthorId }
+                body: {
+                    qToken,
+                    selectedAuthorId,
+                    sessionToken: this.sessionToken,
+                    timeLeft: extra.timeLeft,
+                    hintUsed: extra.hintUsed
+                }
             });
             if (data && typeof data.isCorrect === 'boolean') {
+                if (data.sessionToken) {
+                    this.sessionToken = data.sessionToken;
+                }
                 return data;
             }
         } catch (e) {
@@ -203,7 +214,25 @@ class SupabaseService {
         }
     }
 
-    async saveScore({ nickname, score, streak, accuracy, mode }) {
+    async saveScore({ nickname, score, streak, accuracy, mode, sessionToken }) {
+        const token = sessionToken || this.sessionToken;
+        if (token) {
+            try {
+                const res = await this.apiCall('quiz?action=submit_score', {
+                    method: 'POST',
+                    body: { sessionToken: token, nickname }
+                });
+                if (res && res.ok) {
+                    this.sessionToken = null;
+                    const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
+                    local.push({ ...res.record, id: 'srv_' + Date.now(), created_at: new Date().toISOString() });
+                    localStorage.setItem('itd_local_leaderboard', JSON.stringify(local.slice(-100)));
+                    return res.record || res;
+                }
+            } catch (e) {
+            }
+        }
+
         const record = {
             nickname: nickname || 'Анонимный скроллер',
             score: Number(score) || 0,
@@ -663,9 +692,10 @@ class SupabaseService {
     }
 
     async fetchRemotePosts() {
-        if (!this.isConfigured) return null;
+        if (!this.isConfigured) return [];
         try {
             const data = await this.request('posts?select=*&order=created_at.desc');
+            if (!Array.isArray(data)) return [];
             return data.map(p => ({
                 id: p.id,
                 correctAuthorId: p.correct_author_id,
@@ -675,10 +705,10 @@ class SupabaseService {
                 difficulty: p.difficulty,
                 tags: p.tags,
                 likes: p.likes,
-                createdAt: new Date(p.created_at).getTime()
+                createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now()
             }));
         } catch (e) {
-            return null;
+            return [];
         }
     }
 
