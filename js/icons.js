@@ -30,11 +30,38 @@ const Icons = {
 };
 
 function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = String(text);
-    return div.innerHTML;
+    if (text === null || text === undefined) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function safeUrl(url, fallback = '') {
+    try {
+        const parsed = new URL(String(url).trim(), window.location.origin);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return parsed.href;
+    } catch (e) {
+    }
+    return fallback;
+}
+
+function safeCssValue(value, fallback = '#333') {
+    const v = String(value || '').trim();
+    if (/^[#a-zA-Z0-9(),.%\s-]+$/.test(v)) return v;
+    return fallback;
 }
 
 window.Icons = Icons;
+function safeImageSrc(src) {
+    const s = String(src || '').trim();
+    if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(s)) return s;
+    return safeUrl(s, '');
+}
+
 window.escapeHtml = escapeHtml;
+window.safeImageSrc = safeImageSrc;
+window.safeUrl = safeUrl;
+window.safeCssValue = safeCssValue;

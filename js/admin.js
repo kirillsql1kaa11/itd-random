@@ -207,7 +207,7 @@ class AdminManager {
                 const item = document.createElement('div');
                 item.className = 'author-suggestion-item';
                 item.innerHTML = `
-                    <div class="asi-avatar" style="background:${a.avatarColor || '#333'}">${a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?')}</div>
+                    <div class="asi-avatar" style="background:${escapeHtml(safeCssValue(a.avatarColor))}">${escapeHtml(a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?'))}</div>
                     <div class="asi-meta">
                         <div class="asi-name">${escapeHtml(a.name)}</div>
                         <div class="asi-handle">${escapeHtml(a.handle || '@' + a.id)}</div>
@@ -249,7 +249,7 @@ class AdminManager {
 
         hiddenInput.value = author.id;
         pillContainer.innerHTML = `
-            <div class="sap-avatar" style="background:${author.avatarColor || '#333'}">${author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?')}</div>
+            <div class="sap-avatar" style="background:${escapeHtml(safeCssValue(author.avatarColor))}">${escapeHtml(author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?'))}</div>
             <span class="sap-name">${escapeHtml(author.name)}</span>
             <span class="sap-handle">${escapeHtml(author.handle || '@' + author.id)}</span>
             <button type="button" class="sap-remove-btn" title="Сменить автора">✕</button>
@@ -329,18 +329,18 @@ class AdminManager {
                 const aName = (a && a.name) ? String(a.name) : '';
                 const aHandle = (a && a.handle) ? String(a.handle) : '';
                 const isSelected = (item.author_id && a && item.author_id === a.id) || (targetAuthorName && aName && aName.toLowerCase() === targetAuthorName);
-                authorSelectHtml += `<option value="${a ? a.id : ''}" ${isSelected ? 'selected' : ''}>${escapeHtml(aName || 'Без имени')} (${escapeHtml(aHandle)})</option>`;
+                authorSelectHtml += `<option value="${escapeHtml(a ? a.id : '')}" ${isSelected ? 'selected' : ''}>${escapeHtml(aName || 'Без имени')} (${escapeHtml(aHandle)})</option>`;
             });
             authorSelectHtml += '</select>';
 
             card.innerHTML = `
-                <img src="${item.screenshot}" alt="Предложенный скриншот" class="asc-thumb">
+                <img src="${escapeHtml(safeImageSrc(item.screenshot))}" alt="Предложенный скриншот" class="asc-thumb">
                 <div class="asc-info">
                     <div class="asc-author-line">Автор: <strong>${escapeHtml(authorDisplayName)}</strong></div>
                     <div class="asc-meta-line">Предложил: <strong>${escapeHtml(item.submitted_by || 'Аноним')}</strong></div>
                     ${item.post_url ? `
                         <div class="asc-link-row">
-                            <a href="${escapeHtml(item.post_url)}" target="_blank" rel="noopener noreferrer" class="asc-external-link">
+                            <a href="${escapeHtml(safeUrl(item.post_url, '#'))}" target="_blank" rel="noopener noreferrer" class="asc-external-link">
                                 <span>Ссылка на пост в ИТД</span> ${window.Icons.externalLink}
                             </a>
                         </div>
@@ -431,7 +431,7 @@ class AdminManager {
 
             const firstChar = (item.name && item.name.length > 0 ? item.name[0] : '?').toUpperCase();
             card.innerHTML = `
-                <div class="aasc-avatar">${firstChar}</div>
+                <div class="aasc-avatar">${escapeHtml(firstChar)}</div>
                 <div class="aasc-info">
                     <div class="aasc-header-row">
                         <strong class="aasc-name">${escapeHtml(item.name)}</strong>
@@ -711,7 +711,7 @@ class AdminManager {
                 tr.innerHTML = `
                     <td class="col-num">${globalIdx}</td>
                     <td class="col-thumb">
-                        <img src="${post.screenshot}" alt="Thumb" class="post-table-thumb">
+                        <img src="${escapeHtml(safeImageSrc(post.screenshot))}" alt="Thumb" class="post-table-thumb">
                     </td>
                     <td class="col-author">
                         <div class="table-author-cell">
@@ -790,7 +790,7 @@ class AdminManager {
                 const card = document.createElement('div');
                 card.className = 'admin-author-item';
                 card.innerHTML = `
-                    <div class="aai-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?')}</div>
+                    <div class="aai-avatar" style="background: ${escapeHtml(safeCssValue(a.avatarColor))}">${escapeHtml(a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?'))}</div>
                     <div class="aai-info">
                         <div class="aai-name-row">
                             <strong>${escapeHtml(a.name)}</strong>

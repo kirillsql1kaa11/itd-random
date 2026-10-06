@@ -553,7 +553,7 @@ class App {
             const rawNick = (a.handle || a.id || '').trim();
             let profileUrl = 'https://xn--d1ah4a.com/';
             if (rawNick.startsWith('http://') || rawNick.startsWith('https://')) {
-                profileUrl = rawNick;
+                profileUrl = window.safeUrl(rawNick, profileUrl);
             } else if (rawNick) {
                 const cleanNick = rawNick.replace(/^@+/, '');
                 if (cleanNick) {
@@ -561,7 +561,7 @@ class App {
                 }
             }
             card.innerHTML = `
-                <div class="acp-avatar" style="background: ${a.avatarColor || '#333'}">${a.avatarText || (a.name ? a.name[0] : '?')}</div>
+                <div class="acp-avatar" style="background: ${window.escapeHtml(window.safeCssValue(a.avatarColor))}">${window.escapeHtml(a.avatarText || (a.name ? a.name[0] : '?'))}</div>
                 <div class="acp-header">
                     <div class="acp-name">${window.escapeHtml(a.name)} ${a.verified ? `<span class="verified-icon">${window.Icons.check}</span>` : ''}</div>
                     <div class="acp-handle">${window.escapeHtml(a.handle || '@' + a.id)}</div>
@@ -569,7 +569,7 @@ class App {
                 ${a.badge ? `<div class="acp-badge-tag">${window.escapeHtml(a.badge)}</div>` : ''}
                 <div class="acp-bio">${window.escapeHtml(a.bio || a.style || 'Популярный автор в ИТД')}</div>
                 <div class="acp-footer">
-                    <a href="${profileUrl}" target="_blank" class="acp-link">Профиль в ИТД ↗</a>
+                    <a href="${window.escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer" class="acp-link">Профиль в ИТД ↗</a>
                 </div>
             `;
             grid.appendChild(card);
@@ -611,10 +611,10 @@ class App {
                     <strong>${window.escapeHtml(entry.nickname)}</strong>
                     ${isMe ? '<span class="lb-you-tag">Вы</span>' : ''}
                 </td>
-                <td class="col-score"><strong>${entry.score}</strong></td>
-                <td class="col-streak">${entry.streak}</td>
-                <td class="col-accuracy">${entry.accuracy}%</td>
-                <td class="col-mode"><span class="badge-tag">${modeName}</span></td>
+                <td class="col-score"><strong>${window.escapeHtml(entry.score)}</strong></td>
+                <td class="col-streak">${window.escapeHtml(entry.streak)}</td>
+                <td class="col-accuracy">${window.escapeHtml(entry.accuracy)}%</td>
+                <td class="col-mode"><span class="badge-tag">${window.escapeHtml(modeName)}</span></td>
             `;
             tbody.appendChild(tr);
         });

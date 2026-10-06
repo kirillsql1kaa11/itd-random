@@ -190,8 +190,8 @@ class GameEngine {
 
             btn.innerHTML = `
                 <div class="option-key-badge">${idx + 1}</div>
-                <div class="option-avatar" style="background: ${author.avatarColor || '#333'}">
-                    ${author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?')}
+                <div class="option-avatar" style="background: ${escapeHtml(safeCssValue(author.avatarColor))}">
+                    ${escapeHtml(author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?'))}
                 </div>
                 <div class="option-meta">
                     <div class="option-name-row">
@@ -374,7 +374,7 @@ class GameEngine {
             ? `<span class="reveal-status-icon">${window.Icons.check}</span> Верно! (+${pointsEarned} очков)` 
             : `<span class="reveal-status-icon">${window.Icons.cross}</span> Неверно. Автор поста:`;
 
-        document.getElementById('reveal-avatar').style.background = author.avatarColor || '#0080ff';
+        document.getElementById('reveal-avatar').style.background = safeCssValue(author.avatarColor, '#0080ff');
         document.getElementById('reveal-avatar').textContent = author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?');
         document.getElementById('reveal-name').textContent = author.name;
         document.getElementById('reveal-handle').textContent = author.handle || '@' + author.id;
@@ -383,7 +383,7 @@ class GameEngine {
         const itdLink = document.getElementById('reveal-itd-link');
         let postUrl = '';
         if (this.currentPost.hint && this.currentPost.hint.startsWith('Оригинал: ')) {
-            postUrl = this.currentPost.hint.replace('Оригинал: ', '').trim();
+            postUrl = safeUrl(this.currentPost.hint.replace('Оригинал: ', '').trim());
         }
         if (postUrl) {
             itdLink.href = postUrl;
@@ -392,7 +392,7 @@ class GameEngine {
             const rawNick = (author.handle || author.id || '').trim();
             let profileUrl = 'https://xn--d1ah4a.com/';
             if (rawNick.startsWith('http://') || rawNick.startsWith('https://')) {
-                profileUrl = rawNick;
+                profileUrl = safeUrl(rawNick, profileUrl);
             } else if (rawNick) {
                 const cleanNick = rawNick.replace(/^@+/, '');
                 if (cleanNick) {
@@ -617,11 +617,5 @@ class GameEngine {
     }
 }
 
-function escapeHtml(text) {
-    if (!text) return '';
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
 
 window.gameEngine = new GameEngine();

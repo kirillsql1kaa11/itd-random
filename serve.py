@@ -38,12 +38,22 @@ def fetch_supabase(endpoint, method='GET', body=None, prefer=None):
     except Exception:
         return None
 
+def safe_equal(a, b):
+    if not isinstance(a, str) or not isinstance(b, str):
+        return False
+    a_bytes = a.encode('utf-8')
+    b_bytes = b.encode('utf-8')
+    if len(a_bytes) != len(b_bytes):
+        return False
+    return hmac.compare_digest(a_bytes, b_bytes)
+
+def create_answer_hash(post_id, author_id):
+    return hmac.new(SECRET, f"{post_id}:{author_id}".encode('utf-8'), hashlib.sha256).hexdigest()
+
 def create_question_token(post_id, correct_author_id):
-    ans_hash = hmac.new(SECRET, f"{post_id}:{correct_author_id}".encode('utf-8'), hashlib.sha256).hexdigest()
     data = {
         'id': post_id,
-        'ansHash': ans_hash,
-        'correctId': correct_author_id,
+        'ansHash': create_answer_hash(post_id, correct_author_id),
         'exp': int(time.time()) + 900
     }
     payload = base64.urlsafe_b64encode(json.dumps(data).encode('utf-8')).decode('utf-8').rstrip('=')
@@ -55,7 +65,7 @@ def verify_question_token(token):
         return None
     payload_str, sig = token.split('.', 1)
     expected_sig = hmac.new(SECRET, payload_str.encode('utf-8'), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, expected_sig):
+    if not safe_equal(sig, expected_sig):
         return None
     try:
         pad = len(payload_str) % 4
@@ -67,10 +77,14 @@ def verify_question_token(token):
     except Exception:
         return None
 
-def create_admin_token():
+def password_fingerprint(stored_password):
+    return hmac.new(SECRET, f"pwf:{stored_password}".encode('utf-8'), hashlib.sha256).hexdigest()[:32]
+
+def create_admin_token(stored_password):
     data = {
         'role': 'admin',
         'iat': int(time.time()),
+        'pwf': password_fingerprint(stored_password),
         'exp': int(time.time()) + 86400
     }
     payload = base64.urlsafe_b64encode(json.dumps(data).encode('utf-8')).decode('utf-8').rstrip('=')
@@ -85,17 +99,20 @@ def verify_admin_token(token):
         return False
     payload_str, sig = clean.split('.', 1)
     expected_sig = hmac.new(SECRET, payload_str.encode('utf-8'), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, expected_sig):
+    if not safe_equal(sig, expected_sig):
         return False
     try:
         pad = len(payload_str) % 4
         padded = payload_str + ('=' * (4 - pad) if pad else '')
         data = json.loads(base64.urlsafe_b64decode(padded.encode('utf-8')).decode('utf-8'))
-        if time.time() > data.get('exp', 0) or data.get('role') != 'admin':
+        if time.time() > data.get('exp', 0) or data.get('role') != 'admin' or not data.get('pwf'):
             return False
-        return True
     except Exception:
         return False
+    stored = get_stored_admin_password()
+    if not stored:
+        return False
+    return safe_equal(data.get('pwf'), password_fingerprint(stored))
 
 def get_stored_admin_password():
     data = fetch_supabase('admin_settings?key=eq.admin_password&select=value')
@@ -238,31 +255,38 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(400, {'error': 'Invalid or expired question token'})
                 return
 
-            correct_id = str(token_data.get('correctId', '')).strip()
-            is_correct = str(selected_id).strip() == correct_id
+            selected_clean = str(selected_id).strip()
+            is_correct = safe_equal(create_answer_hash(token_data.get('id'), selected_clean), token_data.get('ansHash'))
 
-            authors = fetch_supabase(f"authors?id=eq.{urllib.parse.quote(correct_id)}&select=*") or []
+            correct_id = selected_clean if is_correct else None
+            if not is_correct:
+                rows = fetch_supabase(f"posts?id=eq.{urllib.parse.quote(str(token_data.get('id')))}&select=correct_author_id") or []
+                if rows and isinstance(rows, list):
+                    correct_id = rows[0].get('correct_author_id')
+
             author_info = None
-            if authors and isinstance(authors, list):
-                a = authors[0]
-                author_info = {
-                    'id': a.get('id'),
-                    'name': a.get('name'),
-                    'handle': a.get('handle'),
-                    'avatarColor': a.get('avatar_color'),
-                    'avatarText': a.get('avatar_text'),
-                    'badge': a.get('badge'),
-                    'bio': a.get('bio'),
-                    'verified': a.get('verified')
-                }
+            if correct_id:
+                authors = fetch_supabase(f"authors?id=eq.{urllib.parse.quote(str(correct_id))}&select=*") or []
+                if authors and isinstance(authors, list):
+                    a = authors[0]
+                    author_info = {
+                        'id': a.get('id'),
+                        'name': a.get('name'),
+                        'handle': a.get('handle'),
+                        'avatarColor': a.get('avatar_color'),
+                        'avatarText': a.get('avatar_text'),
+                        'badge': a.get('badge'),
+                        'bio': a.get('bio'),
+                        'verified': a.get('verified')
+                    }
 
-            if not author_info:
-                author_info = {
-                    'id': correct_id,
-                    'name': correct_id,
-                    'handle': f"@{correct_id}",
-                    'bio': 'Популярный автор в ИТД'
-                }
+                if not author_info:
+                    author_info = {
+                        'id': correct_id,
+                        'name': correct_id,
+                        'handle': f"@{correct_id}",
+                        'bio': 'Популярный автор в ИТД'
+                    }
 
             self.send_json(200, {
                 'isCorrect': is_correct,
@@ -295,7 +319,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(401, {'error': 'Неверный пароль'})
                 return
 
-            token = create_admin_token()
+            token = create_admin_token(stored)
             self.send_json(200, {'ok': True, 'token': token, 'message': 'Авторизация успешна'})
             return
 
@@ -364,7 +388,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 'value': new_pass,
                 'updated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
             })
-            self.send_json(200, {'ok': True, 'message': 'Пароль администратора обновлен'})
+            self.send_json(200, {'ok': True, 'token': create_admin_token(new_pass), 'message': 'Пароль администратора обновлен'})
             return
 
         elif action == 'moderate_post':

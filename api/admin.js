@@ -47,10 +47,23 @@ function createHmacHash(text) {
     return crypto.createHmac('sha256', SECRET).update(text).digest('hex');
 }
 
-function createAdminToken() {
+function safeEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (Buffer.byteLength(bufA) !== Buffer.byteLength(bufB)) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function passwordFingerprint(storedPassword) {
+    return createHmacHash(`pwf:${storedPassword}`).slice(0, 32);
+}
+
+function createAdminToken(storedPassword) {
     const payload = Buffer.from(JSON.stringify({
         role: 'admin',
         iat: Date.now(),
+        pwf: passwordFingerprint(storedPassword),
         exp: Date.now() + 24 * 60 * 60 * 1000
     })).toString('base64url');
 
@@ -58,7 +71,7 @@ function createAdminToken() {
     return `${payload}.${sig}`;
 }
 
-function verifyAdminToken(token) {
+async function verifyAdminToken(token) {
     if (!token || typeof token !== 'string') return false;
     const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
     const parts = cleanToken.split('.');
@@ -66,17 +79,22 @@ function verifyAdminToken(token) {
     const [payloadStr, sig] = parts;
     const expectedSig = createHmacHash(payloadStr);
 
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
+    if (!safeEqual(sig, expectedSig)) {
         return false;
     }
 
+    let data;
     try {
-        const data = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf-8'));
-        if (Date.now() > data.exp || data.role !== 'admin') return false;
-        return true;
+        data = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf-8'));
     } catch {
         return false;
     }
+
+    if (!data || Date.now() > data.exp || data.role !== 'admin' || !data.pwf) return false;
+
+    const stored = await getStoredAdminPassword();
+    if (!stored) return false;
+    return safeEqual(data.pwf, passwordFingerprint(stored));
 }
 
 async function getStoredAdminPassword() {
@@ -125,7 +143,7 @@ module.exports = async (req, res) => {
             return res.status(401).json({ error: 'Неверный пароль' });
         }
 
-        const token = createAdminToken();
+        const token = createAdminToken(stored);
         return res.status(200).json({
             ok: true,
             token,
@@ -135,12 +153,12 @@ module.exports = async (req, res) => {
 
     if (action === 'verify') {
         const token = (req.body && req.body.token) || authHeader;
-        const valid = verifyAdminToken(token);
+        const valid = await verifyAdminToken(token);
         return res.status(200).json({ valid });
     }
 
     const token = (req.body && req.body.adminToken) || authHeader;
-    if (!verifyAdminToken(token)) {
+    if (!(await verifyAdminToken(token))) {
         return res.status(401).json({ error: 'Требуется авторизация администратора' });
     }
 
@@ -236,7 +254,7 @@ module.exports = async (req, res) => {
                 }
             });
 
-            return res.status(200).json({ ok: true, message: 'Пароль администратора обновлен' });
+            return res.status(200).json({ ok: true, token: createAdminToken(val), message: 'Пароль администратора обновлен' });
         }
 
         if (action === 'moderate_post') {

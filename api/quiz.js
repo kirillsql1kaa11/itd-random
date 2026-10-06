@@ -46,12 +46,22 @@ function createHmacHash(text) {
     return crypto.createHmac('sha256', SECRET).update(text).digest('hex');
 }
 
+function safeEqual(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') return false;
+    const bufA = Buffer.from(a);
+    const bufB = Buffer.from(b);
+    if (Buffer.byteLength(bufA) !== Buffer.byteLength(bufB)) return false;
+    return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function createAnswerHash(postId, authorId) {
+    return createHmacHash(`${postId}:${authorId}`);
+}
+
 function createQuestionToken(postId, correctAuthorId) {
-    const ansHash = createHmacHash(`${postId}:${correctAuthorId}`);
     const payload = Buffer.from(JSON.stringify({
         id: postId,
-        ansHash,
-        correctId: correctAuthorId,
+        ansHash: createAnswerHash(postId, correctAuthorId),
         exp: Date.now() + 15 * 60 * 1000
     })).toString('base64url');
 
@@ -66,7 +76,7 @@ function verifyQuestionToken(token) {
     const [payloadStr, sig] = parts;
     const expectedSig = createHmacHash(payloadStr);
 
-    if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expectedSig))) {
+    if (!safeEqual(sig, expectedSig)) {
         return null;
     }
 
@@ -175,40 +185,55 @@ module.exports = async (req, res) => {
                 return res.status(400).json({ error: 'Invalid or expired question token' });
             }
 
-            const isCorrect = String(selectedAuthorId).trim() === String(tokenData.correctId).trim();
+            const selectedId = String(selectedAuthorId).trim();
+            const isCorrect = safeEqual(createAnswerHash(tokenData.id, selectedId), tokenData.ansHash);
 
-            let authorInfo = null;
-            try {
-                const authors = await fetchSupabase(`authors?id=eq.${encodeURIComponent(tokenData.correctId)}&select=*`);
-                if (Array.isArray(authors) && authors.length > 0) {
-                    const a = authors[0];
-                    authorInfo = {
-                        id: a.id,
-                        name: a.name,
-                        handle: a.handle,
-                        avatarColor: a.avatar_color,
-                        avatarText: a.avatar_text,
-                        badge: a.badge,
-                        bio: a.bio,
-                        verified: a.verified
-                    };
+            let correctAuthorId = isCorrect ? selectedId : null;
+            if (!isCorrect) {
+                try {
+                    const rows = await fetchSupabase(`posts?id=eq.${encodeURIComponent(tokenData.id)}&select=correct_author_id`);
+                    if (Array.isArray(rows) && rows.length > 0) {
+                        correctAuthorId = rows[0].correct_author_id;
+                    }
+                } catch (err) {
+                    console.warn(err);
                 }
-            } catch (err) {
-                console.warn(err);
             }
 
-            if (!authorInfo) {
-                authorInfo = {
-                    id: tokenData.correctId,
-                    name: tokenData.correctId,
-                    handle: '@' + tokenData.correctId,
-                    bio: 'Популярный автор в ИТД'
-                };
+            let authorInfo = null;
+            if (correctAuthorId) {
+                try {
+                    const authors = await fetchSupabase(`authors?id=eq.${encodeURIComponent(correctAuthorId)}&select=*`);
+                    if (Array.isArray(authors) && authors.length > 0) {
+                        const a = authors[0];
+                        authorInfo = {
+                            id: a.id,
+                            name: a.name,
+                            handle: a.handle,
+                            avatarColor: a.avatar_color,
+                            avatarText: a.avatar_text,
+                            badge: a.badge,
+                            bio: a.bio,
+                            verified: a.verified
+                        };
+                    }
+                } catch (err) {
+                    console.warn(err);
+                }
+
+                if (!authorInfo) {
+                    authorInfo = {
+                        id: correctAuthorId,
+                        name: correctAuthorId,
+                        handle: '@' + correctAuthorId,
+                        bio: 'Популярный автор в ИТД'
+                    };
+                }
             }
 
             return res.status(200).json({
                 isCorrect,
-                correctAuthorId: tokenData.correctId,
+                correctAuthorId,
                 correctAuthor: authorInfo
             });
         }

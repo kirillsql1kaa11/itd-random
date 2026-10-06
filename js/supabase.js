@@ -134,10 +134,14 @@ class SupabaseService {
         localStorage.setItem('itd_admin_custom_password', val);
 
         try {
-            await this.apiCall('admin?action=change_password', {
+            const changeRes = await this.apiCall('admin?action=change_password', {
                 method: 'POST',
                 body: { newPassword: val, adminToken: this.adminToken }
             });
+            if (changeRes && changeRes.token) {
+                this.adminToken = changeRes.token;
+                sessionStorage.setItem('itd_admin_token', changeRes.token);
+            }
             return true;
         } catch (e) {
         }
