@@ -2,6 +2,10 @@ window.ShareCard = {
     WIDTH: 1200,
     HEIGHT: 630,
     ITD_URL: 'https://xn--d1ah4a.com',
+    cachedDataUrl: null,
+    cachedBlob: null,
+    cachedFile: null,
+    cachedKey: null,
 
     modeLabel(mode) {
         if (mode === 'survival') return 'Выживание';
@@ -10,6 +14,12 @@ window.ShareCard = {
     },
 
     roundRect(ctx, x, y, w, h, r) {
+        if (typeof ctx.roundRect === 'function') {
+            ctx.beginPath();
+            ctx.roundRect(x, y, w, h, r);
+            ctx.closePath();
+            return;
+        }
         ctx.beginPath();
         ctx.moveTo(x + r, y);
         ctx.arcTo(x + w, y, x + w, y + h, r);
@@ -21,21 +31,31 @@ window.ShareCard = {
 
     fitText(ctx, text, maxWidth) {
         if (ctx.measureText(text).width <= maxWidth) return text;
-        let out = text;
+        let out = String(text);
         while (out.length > 1 && ctx.measureText(out + '…').width > maxWidth) {
             out = out.slice(0, -1);
         }
         return out + '…';
     },
 
-    async render(data) {
-        try {
-            await Promise.all([
-                document.fonts.load('800 64px Unbounded'),
-                document.fonts.load('700 28px Inter'),
-                document.fonts.load('400 22px Inter')
-            ]);
-        } catch (e) {
+    async generate(data) {
+        if (!data) return null;
+        const key = JSON.stringify(data);
+        if (this.cachedKey === key && this.cachedDataUrl && this.cachedBlob) {
+            return {
+                dataUrl: this.cachedDataUrl,
+                blob: this.cachedBlob,
+                file: this.cachedFile
+            };
+        }
+
+        if (document.fonts && document.fonts.ready) {
+            try {
+                await Promise.race([
+                    document.fonts.ready,
+                    new Promise(r => setTimeout(r, 150))
+                ]);
+            } catch (_) {}
         }
 
         const W = this.WIDTH;
@@ -72,7 +92,7 @@ window.ShareCard = {
         ctx.textAlign = 'left';
 
         const pillText = 'ИТД · КТО АВТОР?';
-        ctx.font = '700 22px Inter, sans-serif';
+        ctx.font = '700 22px Inter, system-ui, sans-serif';
         const pillW = ctx.measureText(pillText).width + 56;
         ctx.fillStyle = 'rgba(0, 128, 255, 0.14)';
         this.roundRect(ctx, 72, 68, pillW, 44, 22);
@@ -88,25 +108,27 @@ window.ShareCard = {
 
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
-        ctx.font = '600 24px Inter, sans-serif';
+        ctx.font = '600 24px Inter, system-ui, sans-serif';
         ctx.fillText(this.modeLabel(data.mode), W - 72, 98);
 
         ctx.textAlign = 'left';
         ctx.fillStyle = '#ffffff';
-        ctx.font = '800 56px Unbounded, Inter, sans-serif';
+        ctx.font = '800 56px Unbounded, Inter, system-ui, sans-serif';
         ctx.fillText(this.fitText(ctx, data.nickname || 'Игрок', W - 144), 72, 200);
 
         const rankGrad = ctx.createLinearGradient(72, 0, 520, 0);
         rankGrad.addColorStop(0, '#4da3ff');
         rankGrad.addColorStop(1, '#f91880');
         ctx.fillStyle = rankGrad;
-        ctx.font = '700 34px Inter, sans-serif';
+        ctx.font = '700 32px Inter, system-ui, sans-serif';
         ctx.fillText(data.rank || 'Игрок', 72, 256);
 
+        const rawAccuracy = String(data.accuracy || '0%').trim();
+        const accuracyVal = rawAccuracy.split(' ')[0] || rawAccuracy;
         const stats = [
-            { label: 'ОЧКОВ НАБРАНО', value: String(data.score) },
-            { label: 'МАКС. СЕРИЯ', value: String(data.streak) },
-            { label: 'ТОЧНОСТЬ', value: data.accuracy }
+            { label: 'ОЧКОВ НАБРАНО', value: String(data.score ?? 0) },
+            { label: 'МАКС. СЕРИЯ', value: String(data.streak ?? 0) },
+            { label: 'ТОЧНОСТЬ', value: accuracyVal }
         ];
         const boxW = 330;
         const boxH = 190;
@@ -126,84 +148,120 @@ window.ShareCard = {
             ctx.textAlign = 'left';
             ctx.fillStyle = '#ffffff';
             let size = 64;
-            ctx.font = `800 ${size}px Unbounded, Inter, sans-serif`;
-            while (ctx.measureText(s.value).width > boxW - 56 && size > 30) {
+            ctx.font = `800 ${size}px Unbounded, Inter, system-ui, sans-serif`;
+            while (ctx.measureText(s.value).width > boxW - 56 && size > 26) {
                 size -= 4;
-                ctx.font = `800 ${size}px Unbounded, Inter, sans-serif`;
+                ctx.font = `800 ${size}px Unbounded, Inter, system-ui, sans-serif`;
             }
             ctx.fillText(s.value, x + 28, boxY + 96);
 
             ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-            ctx.font = '700 20px Inter, sans-serif';
+            ctx.font = '700 18px Inter, system-ui, sans-serif';
             ctx.fillText(s.label, x + 28, boxY + 148);
         });
 
         ctx.textAlign = 'left';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
-        ctx.font = '500 26px Inter, sans-serif';
+        ctx.font = '500 24px Inter, system-ui, sans-serif';
         const host = window.location.host || 'itd-quiz';
         ctx.fillText('Сыграй сам: ' + host, 72, 566);
 
         ctx.textAlign = 'right';
         ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
-        ctx.font = '600 22px Inter, sans-serif';
+        ctx.font = '600 22px Inter, system-ui, sans-serif';
         ctx.fillText('Угадай, кто написал пост', W - 72, 566);
 
-        return canvas;
-    },
-
-    toBlob(canvas) {
-        return new Promise((resolve, reject) => {
-            canvas.toBlob((blob) => {
-                if (blob) resolve(blob);
-                else reject(new Error('Не удалось создать изображение'));
-            }, 'image/png');
+        const dataUrl = canvas.toDataURL('image/png');
+        const blob = await new Promise((resolve) => {
+            try {
+                canvas.toBlob((b) => resolve(b), 'image/png');
+            } catch (_) {
+                resolve(null);
+            }
         });
-    },
-
-    async copyImage(data) {
-        const canvas = await this.render(data);
-        const blob = await this.toBlob(canvas);
-        if (navigator.clipboard && window.ClipboardItem) {
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            return 'copied';
+        let file = null;
+        if (blob && typeof File === 'function') {
+            try {
+                file = new File([blob], 'itd-quiz-result.png', { type: 'image/png' });
+            } catch (_) {
+                file = null;
+            }
         }
-        this.download(blob);
-        return 'downloaded';
+
+        this.cachedKey = key;
+        this.cachedDataUrl = dataUrl;
+        this.cachedBlob = blob;
+        this.cachedFile = file;
+
+        return { dataUrl, blob, file };
     },
 
-    download(blob) {
-        const url = URL.createObjectURL(blob);
+    download(blobOrUrl) {
+        if (!blobOrUrl) return;
         const a = document.createElement('a');
+        let url = blobOrUrl;
+        let needRevoke = false;
+        if (blobOrUrl instanceof Blob) {
+            url = URL.createObjectURL(blobOrUrl);
+            needRevoke = true;
+        }
         a.href = url;
         a.download = 'itd-quiz-result.png';
         document.body.appendChild(a);
         a.click();
         a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
+        if (needRevoke) {
+            setTimeout(() => URL.revokeObjectURL(url), 3000);
+        }
+    },
+
+    async copyImage(data) {
+        if (!this.cachedBlob || this.cachedKey !== JSON.stringify(data)) {
+            await this.generate(data);
+        }
+        const blob = this.cachedBlob;
+
+        if (navigator.clipboard && window.ClipboardItem && blob) {
+            try {
+                await navigator.clipboard.write([
+                    new ClipboardItem({ 'image/png': blob })
+                ]);
+                return 'copied';
+            } catch (_) {
+            }
+        }
+
+        this.download(blob || this.cachedDataUrl);
+        return 'downloaded';
     },
 
     async shareToItd(data) {
-        const canvas = await this.render(data);
-        const blob = await this.toBlob(canvas);
-        const file = new File([blob], 'itd-quiz-result.png', { type: 'image/png' });
-        const text = `ИТД: Угадай Автора — ${data.score} очков, точность ${data.accuracy}, серия ${data.streak}. Сыграй сам: ${window.location.origin}`;
+        if (!this.cachedBlob || this.cachedKey !== JSON.stringify(data)) {
+            await this.generate(data);
+        }
+        const file = this.cachedFile;
+        const blob = this.cachedBlob;
+        const accuracyText = String(data.accuracy || '0%');
+        const text = `ИТД: Угадай Автора — ${data.score} очков, точность ${accuracyText}, серия ${data.streak}. Сыграй сам: ${window.location.origin}`;
 
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
             try {
-                await navigator.share({ files: [file], text });
+                await navigator.share({
+                    files: [file],
+                    title: 'ИТД: Угадай Автора',
+                    text: text
+                });
                 return 'shared';
             } catch (e) {
                 if (e && e.name === 'AbortError') return 'cancelled';
             }
         }
 
-        this.download(blob);
-        if (navigator.clipboard) {
+        this.download(blob || this.cachedDataUrl);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
             try {
                 await navigator.clipboard.writeText(text);
-            } catch (e) {
-            }
+            } catch (_) {}
         }
         window.open(this.ITD_URL, '_blank', 'noopener');
         return 'downloaded';

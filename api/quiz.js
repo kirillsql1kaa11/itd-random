@@ -54,6 +54,15 @@ function safeEqual(a, b) {
     return crypto.timingSafeEqual(bufA, bufB);
 }
 
+function shuffle(list) {
+    const arr = [...list];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = crypto.randomInt(i + 1);
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+}
+
 function createAnswerHash(postId, authorId) {
     return createHmacHash(`${postId}:${authorId}`);
 }
@@ -105,20 +114,29 @@ module.exports = async (req, res) => {
         if (action === 'get_questions' || req.method === 'GET') {
             const mode = req.query.mode || 'blitz';
             
-            const [postsData, authorsData] = await Promise.all([
-                fetchSupabase('posts?select=*&order=created_at.desc'),
+            const [idRows, authorsData] = await Promise.all([
+                fetchSupabase('posts?select=id'),
                 fetchSupabase('authors?select=*')
             ]);
 
-            const posts = Array.isArray(postsData) ? postsData : [];
+            const allIds = (Array.isArray(idRows) ? idRows : []).map(r => r.id).filter(id => id !== null && id !== undefined);
             const authors = Array.isArray(authorsData) ? authorsData : [];
 
-            if (posts.length === 0) {
+            if (allIds.length === 0) {
                 return res.status(200).json({ questions: [], total: 0 });
             }
 
-            const shuffledPosts = [...posts].sort(() => Math.random() - 0.5);
-            const selectedPosts = mode === 'blitz' ? shuffledPosts.slice(0, 10) : shuffledPosts;
+            const shuffledIds = shuffle(allIds);
+            const pickedIds = mode === 'blitz' ? shuffledIds.slice(0, 10) : shuffledIds.slice(0, 25);
+
+            const inList = pickedIds.join(',');
+            const postsData = await fetchSupabase(`posts?id=in.(${inList})&select=*`);
+            const postsById = new Map((Array.isArray(postsData) ? postsData : []).map(p => [p.id, p]));
+            const selectedPosts = pickedIds.map(id => postsById.get(id)).filter(Boolean);
+
+            if (selectedPosts.length === 0) {
+                return res.status(200).json({ questions: [], total: 0 });
+            }
 
             const questions = selectedPosts.map(post => {
                 const correctAuthorId = post.correct_author_id;

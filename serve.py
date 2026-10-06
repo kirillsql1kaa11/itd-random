@@ -176,17 +176,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         action = qs.get('action', ['get_questions'])[0]
         mode = qs.get('mode', ['blitz'])[0]
 
-        posts = fetch_supabase('posts?select=*&order=created_at.desc') or []
+        id_rows = fetch_supabase('posts?select=id') or []
         authors = fetch_supabase('authors?select=*') or []
 
-        if not posts:
+        all_ids = [r.get('id') for r in id_rows if isinstance(r, dict) and r.get('id') is not None]
+        if not all_ids:
             self.send_json(200, {'questions': [], 'total': 0})
             return
 
         import random
-        shuffled_posts = list(posts)
-        random.shuffle(shuffled_posts)
-        selected_posts = shuffled_posts[:10] if mode == 'blitz' else shuffled_posts
+        shuffled_ids = list(all_ids)
+        random.shuffle(shuffled_ids)
+        picked_ids = shuffled_ids[:10] if mode == 'blitz' else shuffled_ids[:25]
+
+        in_list = ','.join(str(i) for i in picked_ids)
+        posts = fetch_supabase(f"posts?id=in.({in_list})&select=*") or []
+        posts_by_id = {p.get('id'): p for p in posts if isinstance(p, dict)}
+        selected_posts = [posts_by_id[i] for i in picked_ids if i in posts_by_id]
+
+        if not selected_posts:
+            self.send_json(200, {'questions': [], 'total': 0})
+            return
 
         questions = []
         for p in selected_posts:

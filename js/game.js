@@ -130,6 +130,25 @@ class GameEngine {
 
         this.renderQuestionUI();
         this.startTimer();
+        this.preloadNextScreenshot();
+    }
+
+    preloadNextScreenshot() {
+        const pool = this.postsPool || [];
+        for (let i = 1; i <= 2; i++) {
+            const next = pool[this.currentIndex + i];
+            if (!next || !next.screenshot) continue;
+            if (!this.preloadedImages) this.preloadedImages = new Map();
+            if (this.preloadedImages.has(next.id)) continue;
+            const img = new Image();
+            img.decoding = 'async';
+            img.src = next.screenshot;
+            this.preloadedImages.set(next.id, img);
+        }
+        if (this.preloadedImages && this.preloadedImages.size > 8) {
+            const oldest = this.preloadedImages.keys().next().value;
+            this.preloadedImages.delete(oldest);
+        }
     }
 
     renderQuestionUI() {
@@ -485,9 +504,12 @@ class GameEngine {
         const img = document.getElementById('share-card-preview');
         if (!img || !this.lastResult || !window.ShareCard) return;
         try {
-            const canvas = await window.ShareCard.render(this.lastResult);
-            img.src = canvas.toDataURL('image/png');
-        } catch (e) {
+            const res = await window.ShareCard.generate(this.lastResult);
+            if (res && res.dataUrl) {
+                img.src = res.dataUrl;
+                img.style.display = 'block';
+            }
+        } catch (_) {
         }
     }
 

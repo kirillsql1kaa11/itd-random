@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Unbounded:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=20261006a">
 </head>
 <body>
 
@@ -225,15 +225,29 @@
                     </div>
                 </div>
 
-                <img class="share-card-preview" id="share-card-preview" alt="Карточка результата" width="1200" height="630">
-
-                <div class="summary-actions-row">
-                    <button class="btn-primary-action" id="btn-play-again">Сыграть еще раз</button>
-                    <button class="btn-secondary-action" id="btn-share-results">Скопировать текст</button>
+                <div class="share-card-wrapper" id="share-card-wrapper">
+                    <img class="share-card-preview" id="share-card-preview" alt="Карточка результата">
                 </div>
-                <div class="summary-actions-row">
-                    <button class="btn-secondary-action" id="btn-copy-card">Скопировать картинку</button>
-                    <button class="btn-secondary-action" id="btn-share-itd">Поделиться в ИТД</button>
+
+                <div class="summary-actions">
+                    <button class="btn-primary-action summary-play-btn" id="btn-play-again">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                        <span>Сыграть еще раз</span>
+                    </button>
+                    <div class="summary-share-grid">
+                        <button class="btn-secondary-action share-btn" id="btn-copy-card">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            <span>Скопировать картинку</span>
+                        </button>
+                        <button class="btn-secondary-action share-btn" id="btn-share-itd">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+                            <span>Поделиться в ИТД</span>
+                        </button>
+                        <button class="btn-secondary-action share-btn" id="btn-share-results">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                            <span>Скопировать текст</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -740,17 +754,17 @@
 
     <canvas id="confetti-canvas"></canvas>
 
-    <script src="js/icons.js"></script>
-    <script src="js/sound.js"></script>
-    <script src="js/imageutil.js"></script>
-    <script src="js/sharecard.js"></script>
-    <script src="js/config.js"></script>
-    <script src="js/supabase.js"></script>
-    <script src="js/authors.js"></script>
-    <script src="js/presets.js"></script>
-    <script src="js/db.js"></script>
-    <script src="js/game.js"></script>
-    <script src="js/admin.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/icons.js?v=20261006a"></script>
+    <script src="js/sound.js?v=20261006a"></script>
+    <script src="js/imageutil.js?v=20261006a"></script>
+    <script src="js/sharecard.js?v=20261006a"></script>
+    <script src="js/config.js?v=20261006a"></script>
+    <script src="js/supabase.js?v=20261006a"></script>
+    <script src="js/authors.js?v=20261006a"></script>
+    <script src="js/presets.js?v=20261006a"></script>
+    <script src="js/db.js?v=20261006a"></script>
+    <script src="js/game.js?v=20261006a"></script>
+    <script src="js/admin.js?v=20261006a"></script>
+    <script src="js/app.js?v=20261006a"></script>
 </body>
 </html>
