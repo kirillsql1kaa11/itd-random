@@ -199,7 +199,7 @@ class SupabaseService {
         return null;
     }
 
-    async getLeaderboard(limit = 25) {
+    async getLeaderboard(limit = 100) {
         if (!this.isConfigured) {
             const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');
             return local.sort((a, b) => b.score - a.score).slice(0, limit);

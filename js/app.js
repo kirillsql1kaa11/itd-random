@@ -4,13 +4,15 @@ class App {
         this.selectedMode = 'blitz';
         this.adminUnlocked = localStorage.getItem('itd_admin_unlocked') === 'true';
         this.suggestedScreenshotDataUrl = null;
+        this.lbScores = [];
+        this.lbPage = 1;
+        this.lbPerPage = 10;
     }
 
     async init() {
         this.bindNavigation();
         this.bindHomeLobby();
         this.bindModals();
-        this.setupSoundButton();
         this.setupBackdropClose();
         document.querySelectorAll('.modal-backdrop, .lightbox-backdrop').forEach(m => {
             m.classList.add('hidden');
@@ -107,6 +109,21 @@ class App {
         document.getElementById('image-lightbox')?.addEventListener('click', (e) => {
             if (e.target.id === 'image-lightbox') {
                 document.getElementById('image-lightbox')?.classList.add('hidden');
+            }
+        });
+
+        document.getElementById('btn-lb-prev')?.addEventListener('click', () => {
+            if (this.lbPage > 1) {
+                this.lbPage--;
+                this.renderLeaderboardPage();
+            }
+        });
+
+        document.getElementById('btn-lb-next')?.addEventListener('click', () => {
+            const totalPages = Math.max(1, Math.ceil(this.lbScores.length / this.lbPerPage));
+            if (this.lbPage < totalPages) {
+                this.lbPage++;
+                this.renderLeaderboardPage();
             }
         });
     }
@@ -524,23 +541,6 @@ class App {
         });
     }
 
-    setupSoundButton() {
-        const soundBtn = document.getElementById('btn-toggle-sound');
-        if (!soundBtn) return;
-
-        const updateIcon = () => {
-            const isMuted = window.soundFX?.isMuted();
-            soundBtn.innerHTML = isMuted ? window.Icons.volumeMute : window.Icons.volume;
-            soundBtn.title = isMuted ? 'Включить звук' : 'Выключить звук';
-        };
-
-        updateIcon();
-        soundBtn.addEventListener('click', () => {
-            window.soundFX?.toggleMute();
-            updateIcon();
-        });
-    }
-
     async renderPublicAuthorsCatalog(searchQuery = '') {
         const grid = document.getElementById('public-authors-grid');
         if (!grid) return;
@@ -588,25 +588,52 @@ class App {
 
         tbody.innerHTML = `<tr><td colspan="6" class="table-empty">Загрузка таблицы лидеров...</td></tr>`;
 
-        const scores = await window.supabaseService.getLeaderboard(25);
+        const scores = await window.supabaseService.getLeaderboard(100);
+        this.lbScores = Array.isArray(scores) ? scores : [];
+        this.lbPage = 1;
+        this.renderLeaderboardPage();
+    }
+
+    renderLeaderboardPage() {
+        const tbody = document.getElementById('leaderboard-tbody');
+        if (!tbody) return;
+
+        const totalItems = this.lbScores.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / this.lbPerPage));
+        if (this.lbPage > totalPages) this.lbPage = totalPages;
+        if (this.lbPage < 1) this.lbPage = 1;
+
+        const infoEl = document.getElementById('leaderboard-page-info');
+        const numEl = document.getElementById('lb-page-number');
+        const prevBtn = document.getElementById('btn-lb-prev');
+        const nextBtn = document.getElementById('btn-lb-next');
+
+        if (infoEl) infoEl.textContent = `Всего: ${totalItems}`;
+        if (numEl) numEl.textContent = `${this.lbPage} / ${totalPages}`;
+        if (prevBtn) prevBtn.disabled = this.lbPage <= 1;
+        if (nextBtn) nextBtn.disabled = this.lbPage >= totalPages;
+
         tbody.innerHTML = '';
 
-        if (!scores || scores.length === 0) {
+        if (totalItems === 0) {
             tbody.innerHTML = `<tr><td colspan="6" class="table-empty">Пока нет записей. Сыграйте первый раунд!</td></tr>`;
             return;
         }
 
+        const startIndex = (this.lbPage - 1) * this.lbPerPage;
+        const pageItems = this.lbScores.slice(startIndex, startIndex + this.lbPerPage);
         const myNickname = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
-        scores.forEach((entry, idx) => {
+        pageItems.forEach((entry, idx) => {
+            const globalRank = startIndex + idx + 1;
             const tr = document.createElement('tr');
             const isMe = entry.nickname === myNickname;
             if (isMe) tr.className = 'leaderboard-my-row';
 
-            let rankBadge = `${idx + 1}`;
-            if (idx === 0) rankBadge = `<span class="lb-medal rank-1">1</span>`;
-            else if (idx === 1) rankBadge = `<span class="lb-medal rank-2">2</span>`;
-            else if (idx === 2) rankBadge = `<span class="lb-medal rank-3">3</span>`;
+            let rankBadge = `${globalRank}`;
+            if (globalRank === 1) rankBadge = `<span class="lb-medal rank-1">1</span>`;
+            else if (globalRank === 2) rankBadge = `<span class="lb-medal rank-2">2</span>`;
+            else if (globalRank === 3) rankBadge = `<span class="lb-medal rank-3">3</span>`;
 
             const modeLabels = { blitz: 'Блиц', survival: 'Выживание', practice: 'Свободный' };
             const modeName = modeLabels[entry.mode] || entry.mode || 'Блиц';
