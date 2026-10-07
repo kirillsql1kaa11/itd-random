@@ -25,6 +25,7 @@ class AdminManager {
         this.bindEvents();
         this.setupPasteListener();
         this.setupAuthorSearch();
+        this.setupItdImport();
         this.setupPasswordSettings();
     }
 
@@ -189,6 +190,77 @@ class AdminManager {
                 window.app.switchTab('home');
                 window.app.showToast('Вы вышли из панели управления', 'info');
             });
+        }
+    }
+
+    setupItdImport() {
+        const urlInput = document.getElementById('admin-itd-url');
+        const tokenInput = document.getElementById('admin-itd-token');
+        const btn = document.getElementById('btn-itd-import');
+        if (!urlInput || !tokenInput || !btn) return;
+
+        tokenInput.value = localStorage.getItem('itd_import_token') || '';
+
+        btn.addEventListener('click', async () => {
+            const url = urlInput.value.trim();
+            const token = tokenInput.value.trim();
+            if (!url) {
+                window.app.showToast('Вставьте ссылку на пост ИТД', 'warning');
+                return;
+            }
+            if (!token) {
+                window.app.showToast('Укажите токен авторизации ИТД', 'warning');
+                return;
+            }
+            localStorage.setItem('itd_import_token', token);
+
+            btn.disabled = true;
+            const prevLabel = btn.textContent;
+            btn.textContent = 'Загрузка...';
+            try {
+                const res = await window.supabaseService.apiCall('admin?action=fetch_itd_post', {
+                    method: 'POST',
+                    body: { url, itdToken: token }
+                });
+                await this.applyItdPost(res.post);
+            } catch (e) {
+                window.app.showToast(e.message || 'Не удалось загрузить пост', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = prevLabel;
+            }
+        });
+    }
+
+    async applyItdPost(post) {
+        if (!post) return;
+
+        const handle = (post.authorHandle || '').toLowerCase();
+        let author = (window.authorsManager.getAll() || []).find(a => (a.handle || '').toLowerCase() === handle);
+
+        if (!author && handle) {
+            const id = handle.replace('@', '').replace(/[^a-z0-9а-яё_]/gi, '_') + '_' + Date.now();
+            author = {
+                id,
+                name: post.authorName || handle,
+                handle: post.authorHandle,
+                badge: 'Автор ИТД',
+                verified: true
+            };
+            await window.authorsManager.addAuthor(author);
+            author = window.authorsManager.getById(id) || author;
+            window.app.showToast(`Создан новый автор ${post.authorHandle}`, 'info');
+        }
+        if (author) this.selectAuthor(author);
+
+        const textEl = document.getElementById('admin-post-text');
+        if (textEl && post.text) textEl.value = post.text;
+
+        if (post.screenshot) {
+            this.loadImageIntoCanvas(post.screenshot);
+            window.app.showToast('Данные поста загружены. Не забудьте скрыть ник на картинке!', 'success');
+        } else {
+            window.app.showToast(post.mediaUrl ? 'Автор и текст заполнены, но картинку не удалось скачать — загрузите вручную' : 'Автор и текст заполнены, в посте не найдено картинки', 'warning');
         }
     }
 

@@ -114,6 +114,125 @@ async function getStoredAdminPassword() {
     return process.env.ADMIN_PASSWORD || null;
 }
 
+const ITD_HOST = 'xn--d1ah4a.com';
+const ITD_MAX_JSON = 1024 * 1024;
+const ITD_MAX_IMAGE = 3 * 1024 * 1024;
+
+function isItdHost(hostname) {
+    const h = String(hostname || '').toLowerCase();
+    return h === ITD_HOST || h.endsWith('.' + ITD_HOST);
+}
+
+function parseItdPostUrl(raw) {
+    let u;
+    try { u = new URL(String(raw || '').trim()); } catch { return null; }
+    if (u.protocol !== 'https:' || !isItdHost(u.hostname)) return null;
+    const m = u.pathname.match(/^\/@([^/]+)\/post\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+    if (!m) return null;
+    return { handle: decodeURIComponent(m[1]), id: m[2].toLowerCase() };
+}
+
+function itdGet(urlStr, headers, maxBytes) {
+    return new Promise((resolve, reject) => {
+        const req = https.get(new URL(urlStr), { headers, timeout: 10000 }, (res) => {
+            const chunks = [];
+            let size = 0;
+            res.on('data', (c) => {
+                size += c.length;
+                if (size > maxBytes) {
+                    req.destroy(new Error('Response too large'));
+                    return;
+                }
+                chunks.push(c);
+            });
+            res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }));
+        });
+        req.on('timeout', () => req.destroy(new Error('Timeout')));
+        req.on('error', reject);
+    });
+}
+
+function pickMediaUrl(root) {
+    const pools = [root.attachments, root.media, root.images, root.photos, root.files, root.image, root.attachment];
+    for (const pool of pools) {
+        const list = Array.isArray(pool) ? pool : (pool ? [pool] : []);
+        for (const entry of list) {
+            if (typeof entry === 'string') return entry;
+            if (entry && typeof entry === 'object') {
+                const type = String(entry.type || entry.mimeType || entry.mime || '').toLowerCase();
+                if (type && !type.includes('image') && !type.includes('photo')) continue;
+                const url = entry.url || entry.src || entry.href || entry.link || entry.path;
+                if (typeof url === 'string') return url;
+            }
+        }
+    }
+    return null;
+}
+
+async function importItdPost(rawUrl, itdToken) {
+    const parsed = parseItdPostUrl(rawUrl);
+    if (!parsed) {
+        return { status: 400, body: { error: 'Ссылка должна вести на пост ИТД: https://итд.com/@автор/post/<id>' } };
+    }
+    if (!itdToken || typeof itdToken !== 'string') {
+        return { status: 400, body: { error: 'Укажите токен авторизации ИТД' } };
+    }
+
+    const headers = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${itdToken.replace(/^Bearer\s+/i, '').trim()}`,
+        'User-Agent': 'Mozilla/5.0 (itd-random admin import)'
+    };
+
+    const apiRes = await itdGet(`https://${ITD_HOST}/api/posts/${parsed.id}`, headers, ITD_MAX_JSON);
+    if (apiRes.status === 401 || apiRes.status === 403) {
+        return { status: 422, body: { error: 'ИТД отклонил токен (401/403). Обновите токен.' } };
+    }
+    if (apiRes.status === 404) {
+        return { status: 404, body: { error: 'Пост не найден в ИТД' } };
+    }
+    if (apiRes.status < 200 || apiRes.status >= 300) {
+        return { status: 502, body: { error: `ИТД вернул ошибку ${apiRes.status}` } };
+    }
+
+    let json;
+    try { json = JSON.parse(apiRes.body.toString('utf-8')); } catch {
+        return { status: 502, body: { error: 'Не удалось разобрать ответ ИТД' } };
+    }
+
+    const root = (json && (json.data || json.post)) || json || {};
+    const author = root.author || root.user || root.owner || {};
+    const result = {
+        id: parsed.id,
+        authorHandle: '@' + String(author.username || author.handle || author.login || parsed.handle).replace(/^@/, ''),
+        authorName: author.displayName || author.display_name || author.name || author.nickname || author.username || parsed.handle,
+        text: String(root.content || root.text || root.body || root.caption || '').slice(0, 2000),
+        mediaUrl: null,
+        screenshot: null,
+        fields: Object.keys(root).slice(0, 40)
+    };
+
+    let mediaUrl = pickMediaUrl(root);
+    if (mediaUrl) {
+        try {
+            mediaUrl = new URL(mediaUrl, `https://${ITD_HOST}`).toString();
+            const mu = new URL(mediaUrl);
+            if (mu.protocol === 'https:' && isItdHost(mu.hostname)) {
+                result.mediaUrl = mediaUrl;
+                const img = await itdGet(mediaUrl, { 'User-Agent': headers['User-Agent'] }, ITD_MAX_IMAGE);
+                const ctype = String(img.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+                if (img.status === 200 && /^image\/(png|jpe?g|webp|gif)$/.test(ctype)) {
+                    result.screenshot = `data:${ctype};base64,${img.body.toString('base64')}`;
+                }
+            }
+        } catch (e) {
+            result.mediaWarning = 'Не удалось скачать картинку: ' + e.message;
+        }
+    }
+
+    return { status: 200, body: { ok: true, post: result } };
+}
+
 function rateKey(ip) {
     return 'rl_login:' + createHmacHash('ip:' + ip).slice(0, 32);
 }
@@ -213,6 +332,12 @@ module.exports = async (req, res) => {
     }
 
     try {
+        if (action === 'fetch_itd_post') {
+            const { url, itdToken } = req.body || {};
+            const out = await importItdPost(url, itdToken);
+            return res.status(out.status).json(out.body);
+        }
+
         if (action === 'save_post') {
             const { post } = req.body || {};
             if (!post || !post.screenshot || !post.correctAuthorId) {

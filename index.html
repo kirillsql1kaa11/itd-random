@@ -439,6 +439,15 @@
             <div class="admin-card">
                 <h2 class="admin-card-title" id="admin-form-title">Загрузка скриншота поста</h2>
 
+                <div class="form-group" id="admin-itd-import" style="margin-bottom: 16px;">
+                    <label class="form-label" for="admin-itd-url">Вставить ссылку на пост в ИТД (автозаполнение)</label>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                        <input type="url" id="admin-itd-url" style="flex:1; min-width:220px;" placeholder="https://итд.com/@автор/post/..." autocomplete="off">
+                        <button type="button" class="btn-small-tool" id="btn-itd-import">Заполнить по ссылке</button>
+                    </div>
+                    <input type="password" id="admin-itd-token" style="margin-top:8px;" placeholder="Токен авторизации ИТД (хранится только в этом браузере)" autocomplete="off">
+                </div>
+
                 <div class="upload-dropzone" id="admin-dropzone">
                     <div class="upload-icon">
                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
