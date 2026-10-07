@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co https://wsrv.nl https://*.wsrv.nl https://xn--d1ah4a.com https://*.xn--d1ah4a.com; connect-src 'self' https://*.supabase.co wss://*.supabase.co;">
     <title>ИТД - КТО АВТОР?</title>
     <meta name="description" content="Угадай автора поста по скриншоту из соцсети ИТД. Минималистичная игра с темной темой, рейтингом игроков и админкой.">
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -11,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Unbounded:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/style.css?v=20261006b">
+    <link rel="stylesheet" href="dist/style.min.css?v=20261007">
 </head>
 <body>
 
@@ -793,17 +794,6 @@
 
     <canvas id="confetti-canvas"></canvas>
 
-    <script src="js/icons.js?v=20261006b"></script>
-    <script src="js/sound.js?v=20261006b"></script>
-    <script src="js/imageutil.js?v=20261006b"></script>
-    <script src="js/sharecard.js?v=20261006b"></script>
-    <script src="js/config.js?v=20261006b"></script>
-    <script src="js/supabase.js?v=20261006b"></script>
-    <script src="js/authors.js?v=20261006b"></script>
-    <script src="js/presets.js?v=20261006b"></script>
-    <script src="js/db.js?v=20261006b"></script>
-    <script src="js/game.js?v=20261006b"></script>
-    <script src="js/admin.js?v=20261006b"></script>
-    <script src="js/app.js?v=20261006b"></script>
+    <script src="dist/app.min.js?v=20261007"></script>
 </body>
 </html>

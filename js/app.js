@@ -35,7 +35,9 @@ class App {
             const lightbox = document.getElementById('image-lightbox');
             const lbImg = document.getElementById('lightbox-img');
             if (lightbox && lbImg) {
-                lbImg.src = src;
+                const safe = window.safeImageSrc ? window.safeImageSrc(src) : src;
+                if (!safe) return;
+                lbImg.src = safe;
                 lightbox.classList.remove('hidden');
             }
         };

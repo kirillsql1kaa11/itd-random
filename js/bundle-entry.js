@@ -1,0 +1,12 @@
+﻿import './icons.js';
+import './sound.js';
+import './imageutil.js';
+import './sharecard.js';
+import './config.js';
+import './supabase.js';
+import './authors.js';
+import './presets.js';
+import './db.js';
+import './game.js';
+import './admin.js';
+import './app.js';

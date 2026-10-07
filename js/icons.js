@@ -54,14 +54,67 @@ function safeCssValue(value, fallback = '#333') {
     return fallback;
 }
 
+function isTrustedImageUrl(urlStr) {
+    if (!urlStr || typeof urlStr !== 'string') return false;
+    const trimmed = urlStr.trim();
+    if (!trimmed) return false;
+
+    // Relative paths
+    if ((trimmed.startsWith('/') && !trimmed.startsWith('//')) || trimmed.startsWith('./') || trimmed.startsWith('../')) {
+        return true;
+    }
+
+    try {
+        const parsed = new URL(trimmed, window.location.origin);
+        // Same-origin is always allowed
+        if (parsed.origin === window.location.origin) return true;
+
+        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return false;
+
+        const host = parsed.hostname.toLowerCase();
+
+        // 1. Supabase Storage / Project URL
+        if (host.endsWith('.supabase.co')) return true;
+        if (window.APP_CONFIG?.supabaseUrl) {
+            try {
+                const cfgHost = new URL(window.APP_CONFIG.supabaseUrl).hostname.toLowerCase();
+                if (host === cfgHost || host.endsWith('.' + cfgHost)) return true;
+            } catch {}
+        }
+
+        // 2. wsrv.nl image proxy / CDN
+        if (host === 'wsrv.nl' || host.endsWith('.wsrv.nl')) return true;
+
+        // 3. ИТД (xn--d1ah4a.com) domain & subdomains (cdn, media, etc.)
+        if (host === 'xn--d1ah4a.com' || host.endsWith('.xn--d1ah4a.com')) return true;
+
+        return false;
+    } catch {
+        return false;
+    }
+}
+
 window.Icons = Icons;
-function safeImageSrc(src) {
+function safeImageSrc(src, fallback = '') {
     const s = String(src || '').trim();
-    if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=]+$/.test(s)) return s;
-    return safeUrl(s, '');
+    if (!s) return fallback;
+
+    // Data URLs (screenshots, previews)
+    if (/^data:image\/(png|jpe?g|webp|gif|svg\+xml);base64,[a-zA-Z0-9+/=]+$/.test(s)) return s;
+
+    // Blob URLs
+    if (s.startsWith('blob:')) return s;
+
+    // Trusted CDN / same-origin only
+    if (isTrustedImageUrl(s)) {
+        return safeUrl(s, fallback);
+    }
+
+    return fallback;
 }
 
 window.escapeHtml = escapeHtml;
 window.safeImageSrc = safeImageSrc;
 window.safeUrl = safeUrl;
 window.safeCssValue = safeCssValue;
+window.isTrustedImageUrl = isTrustedImageUrl;

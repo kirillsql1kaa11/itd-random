@@ -142,9 +142,11 @@ class GameEngine {
             if (!next || !next.screenshot) continue;
             if (!this.preloadedImages) this.preloadedImages = new Map();
             if (this.preloadedImages.has(next.id)) continue;
+            const safeSrc = window.safeImageSrc ? window.safeImageSrc(next.screenshot) : next.screenshot;
+            if (!safeSrc) continue;
             const img = new Image();
             img.decoding = 'async';
-            img.src = next.screenshot;
+            img.src = safeSrc;
             this.preloadedImages.set(next.id, img);
         }
         if (this.preloadedImages && this.preloadedImages.size > 8) {
@@ -183,7 +185,7 @@ class GameEngine {
         }
 
         const imgEl = document.getElementById('post-screenshot-img');
-        imgEl.src = this.currentPost.screenshot;
+        imgEl.src = window.safeImageSrc ? window.safeImageSrc(this.currentPost.screenshot) : this.currentPost.screenshot;
         imgEl.alt = "Скриншот поста ИТД";
 
         const hintBtn = document.getElementById('btn-use-hint');
@@ -635,7 +637,7 @@ class GameEngine {
         const lightbox = document.getElementById('image-lightbox');
         const lbImg = document.getElementById('lightbox-img');
         if (lightbox.classList.contains('hidden')) {
-            lbImg.src = this.currentPost.screenshot;
+            lbImg.src = window.safeImageSrc ? window.safeImageSrc(this.currentPost.screenshot) : this.currentPost.screenshot;
             lightbox.classList.remove('hidden');
         } else {
             lightbox.classList.add('hidden');
