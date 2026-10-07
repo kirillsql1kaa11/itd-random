@@ -1,5 +1,10 @@
 const https = require('https');
 const crypto = require('crypto');
+const { applyCors, getClientIp } = require('./_cors');
+
+const MAX_FAILED_ATTEMPTS = 5;
+const RATE_WINDOW_MS = 15 * 60 * 1000;
+const memoryAttempts = new Map();
 
 const SECRET = process.env.API_SECRET || 'a8f5e3d2c1b0987654321fedcba0123456789abcdef0123456789abcdef01234';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vwglpnluozdgnztasrrp.supabase.co';
@@ -109,15 +114,48 @@ async function getStoredAdminPassword() {
     return process.env.ADMIN_PASSWORD || null;
 }
 
-module.exports = async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+function rateKey(ip) {
+    return 'rl_login:' + createHmacHash('ip:' + ip).slice(0, 32);
+}
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
+function pruneAttempts(list, now) {
+    return (Array.isArray(list) ? list : []).filter(t => typeof t === 'number' && now - t < RATE_WINDOW_MS);
+}
+
+async function loadAttempts(ip) {
+    const now = Date.now();
+    let list = pruneAttempts(memoryAttempts.get(ip), now);
+    try {
+        const data = await fetchSupabase(`admin_settings?key=eq.${encodeURIComponent(rateKey(ip))}&select=value`);
+        if (Array.isArray(data) && data[0] && data[0].value) {
+            const remote = pruneAttempts(JSON.parse(data[0].value), now);
+            if (remote.length > list.length) list = remote;
+        }
+    } catch (e) {
+        console.warn('rate limit load failed', e.message);
     }
+    return list;
+}
+
+async function saveAttempts(ip, list) {
+    if (list.length) memoryAttempts.set(ip, list); else memoryAttempts.delete(ip);
+    try {
+        if (list.length) {
+            await fetchSupabase('admin_settings?on_conflict=key', {
+                method: 'POST',
+                prefer: 'resolution=merge-duplicates',
+                body: { key: rateKey(ip), value: JSON.stringify(list), updated_at: new Date().toISOString() }
+            });
+        } else {
+            await fetchSupabase(`admin_settings?key=eq.${encodeURIComponent(rateKey(ip))}`, { method: 'DELETE' });
+        }
+    } catch (e) {
+        console.warn('rate limit save failed', e.message);
+    }
+}
+
+module.exports = async (req, res) => {
+    if (applyCors(req, res)) return;
 
     const action = req.query.action || (req.body && req.body.action);
     const authHeader = req.headers['authorization'] || '';
@@ -126,6 +164,14 @@ module.exports = async (req, res) => {
         const { password } = req.body || {};
         if (!password) {
             return res.status(400).json({ error: 'Password is required' });
+        }
+
+        const ip = getClientIp(req);
+        const attempts = await loadAttempts(ip);
+        if (attempts.length >= MAX_FAILED_ATTEMPTS) {
+            const retryAfter = Math.ceil((attempts[0] + RATE_WINDOW_MS - Date.now()) / 1000);
+            res.setHeader('Retry-After', String(Math.max(retryAfter, 1)));
+            return res.status(429).json({ error: 'Слишком много попыток входа. Попробуйте позже.', retryAfter });
         }
 
         const candidate = String(password).trim();
@@ -139,9 +185,13 @@ module.exports = async (req, res) => {
         const isMatch = (candidate === stored) || (candidateHash === stored);
 
         if (!isMatch) {
+            attempts.push(Date.now());
+            await saveAttempts(ip, attempts);
             await new Promise(r => setTimeout(r, 600));
             return res.status(401).json({ error: 'Неверный пароль' });
         }
+
+        if (attempts.length) await saveAttempts(ip, []);
 
         const token = createAdminToken(stored);
         return res.status(200).json({

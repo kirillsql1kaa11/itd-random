@@ -280,11 +280,15 @@ class SupabaseService {
 
         if (this.isConfigured) {
             try {
-                await this.request('suggestions_posts', {
+                await this.apiCall('suggest', {
                     method: 'POST',
+                    headers: { 'Authorization': '' },
                     body: item
                 });
             } catch (e) {
+                if (/\b(413|429)\b|МБ|много|большой/.test(e.message || '')) {
+                    throw e;
+                }
             }
         }
         return true;
@@ -459,7 +463,18 @@ class SupabaseService {
             'linear-gradient(135deg, #7c3aed, #ec4899)',
             'linear-gradient(135deg, #ef4444, #f97316)',
             'linear-gradient(135deg, #10b981, #06b6d4)',
-            'linear-gradient(135deg, #f59e0b, #ef4444)'
+            'linear-gradient(135deg, #f59e0b, #ef4444)',
+            'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+            'linear-gradient(135deg, #ec4899, #f43f5e)',
+            'linear-gradient(135deg, #84cc16, #22c55e)',
+            'linear-gradient(135deg, #14b8a6, #3b82f6)',
+            'linear-gradient(135deg, #f97316, #facc15)',
+            'linear-gradient(135deg, #a855f7, #6366f1)',
+            'linear-gradient(135deg, #06b6d4, #22c55e)',
+            'linear-gradient(135deg, #f43f5e, #fb923c)',
+            'linear-gradient(135deg, #64748b, #0f172a)',
+            'linear-gradient(135deg, #d946ef, #f59e0b)',
+            'linear-gradient(135deg, #0ea5e9, #6366f1)'
         ];
         const randomColor = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
 
@@ -689,6 +704,48 @@ class SupabaseService {
             await this.request(`posts?id=eq.${id}`, { method: 'DELETE' });
         } catch (e) {
         }
+    }
+
+    async fetchPostsPage({ limit = 15, offset = 0, query = '' } = {}) {
+        if (!this.isConfigured) return null;
+        const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 15, 1), 100);
+        const safeOffset = Math.max(parseInt(offset, 10) || 0, 0);
+        const q = String(query || '').replace(/[*,()%\\:"]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 100);
+
+        let endpoint = `posts?select=*&order=created_at.desc&limit=${safeLimit}&offset=${safeOffset}`;
+        if (q) {
+            const pattern = encodeURIComponent(`*${q}*`);
+            endpoint += `&or=(post_text.ilike.${pattern},hint.ilike.${pattern})`;
+        }
+
+        const res = await fetch(`${this.url}/rest/v1/${endpoint}`, {
+            headers: {
+                'apikey': this.key,
+                'Authorization': `Bearer ${this.key}`,
+                'Prefer': 'count=exact'
+            }
+        });
+        if (!res.ok) throw new Error(`Supabase error (${res.status})`);
+
+        const data = await res.json();
+        const range = res.headers.get('Content-Range') || '';
+        const totalMatch = range.match(/\/(\d+)$/);
+        const total = totalMatch ? parseInt(totalMatch[1], 10) : safeOffset + data.length;
+
+        return {
+            total,
+            posts: (Array.isArray(data) ? data : []).map(p => ({
+                id: p.id,
+                correctAuthorId: p.correct_author_id,
+                postText: p.post_text,
+                screenshot: p.screenshot,
+                hint: p.hint,
+                difficulty: p.difficulty,
+                tags: p.tags,
+                likes: p.likes,
+                createdAt: p.created_at ? new Date(p.created_at).getTime() : Date.now()
+            }))
+        };
     }
 
     async fetchRemotePosts() {

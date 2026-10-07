@@ -48,7 +48,18 @@ class AuthorsManager {
                 'linear-gradient(135deg, #ec4899, #8b5cf6)',
                 'linear-gradient(135deg, #f59e0b, #ef4444)',
                 'linear-gradient(135deg, #10b981, #3b82f6)',
-                'linear-gradient(135deg, #6366f1, #d946ef)'
+                'linear-gradient(135deg, #6366f1, #d946ef)',
+                'linear-gradient(135deg, #0288d1, #26c6da)',
+                'linear-gradient(135deg, #7c3aed, #ec4899)',
+                'linear-gradient(135deg, #ef4444, #f97316)',
+                'linear-gradient(135deg, #10b981, #06b6d4)',
+                'linear-gradient(135deg, #ec4899, #f43f5e)',
+                'linear-gradient(135deg, #84cc16, #22c55e)',
+                'linear-gradient(135deg, #14b8a6, #3b82f6)',
+                'linear-gradient(135deg, #f97316, #facc15)',
+                'linear-gradient(135deg, #a855f7, #6366f1)',
+                'linear-gradient(135deg, #f43f5e, #fb923c)',
+                'linear-gradient(135deg, #0ea5e9, #6366f1)'
             ];
             author.avatarColor = colors[Math.floor(Math.random() * colors.length)];
         }

@@ -488,14 +488,19 @@ class App {
             const postUrl = document.getElementById('suggest-post-url')?.value.trim() || '';
             const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
-            await window.supabaseService.submitPostSuggestion({
-                authorId,
-                authorName,
-                screenshot: this.suggestedScreenshotDataUrl,
-                postText,
-                postUrl,
-                submittedBy: submitter
-            });
+            try {
+                await window.supabaseService.submitPostSuggestion({
+                    authorId,
+                    authorName,
+                    screenshot: this.suggestedScreenshotDataUrl,
+                    postText,
+                    postUrl,
+                    submittedBy: submitter
+                });
+            } catch (err) {
+                this.showToast(err.message || 'Не удалось отправить пост', 'error');
+                return;
+            }
 
             localStorage.setItem('itd_last_post_suggest_time', String(Date.now()));
             modal.classList.add('hidden');

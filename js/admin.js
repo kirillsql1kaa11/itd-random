@@ -8,7 +8,11 @@ class AdminManager {
         this.selectedAuthor = null;
 
         this.postsPage = 1;
-        this.postsPerPage = 8;
+        this.postsPerPage = 15;
+        this.postsTotal = 0;
+        this.postsAllTotal = null;
+        this.postsRequestId = 0;
+        this.postsSearchTimer = null;
         this.postsSearch = '';
         this.cachedPosts = [];
 
@@ -115,22 +119,23 @@ class AdminManager {
         const postsSearchInput = document.getElementById('admin-posts-search-input');
         if (postsSearchInput) {
             postsSearchInput.addEventListener('input', (e) => {
-                this.postsSearch = (e.target.value || '').trim().toLowerCase();
+                this.postsSearch = (e.target.value || '').trim();
                 this.postsPage = 1;
-                this.renderPostsTable();
+                clearTimeout(this.postsSearchTimer);
+                this.postsSearchTimer = setTimeout(() => this.refreshPostsTable(), 300);
             });
         }
 
         document.getElementById('btn-posts-prev')?.addEventListener('click', () => {
             if (this.postsPage > 1) {
                 this.postsPage--;
-                this.renderPostsTable();
+                this.refreshPostsTable();
             }
         });
 
         document.getElementById('btn-posts-next')?.addEventListener('click', () => {
             this.postsPage++;
-            this.renderPostsTable();
+            this.refreshPostsTable();
         });
 
         const authorsSearchInput = document.getElementById('admin-authors-search-input');
@@ -650,22 +655,57 @@ class AdminManager {
     }
 
     async refreshPostsTable() {
-        let posts = [];
+        const requestId = ++this.postsRequestId;
+        const query = (this.postsSearch || '').trim();
+        let pagePosts = [];
+        let total = 0;
+        let loaded = false;
+
         if (window.supabaseService?.isConfigured) {
-            const remotePosts = await window.supabaseService.fetchRemotePosts();
-            if (Array.isArray(remotePosts)) {
-                posts = remotePosts;
+            try {
+                let result = await window.supabaseService.fetchPostsPage({
+                    limit: this.postsPerPage,
+                    offset: (this.postsPage - 1) * this.postsPerPage,
+                    query
+                });
+                if (result && result.posts.length === 0 && result.total > 0 && this.postsPage > 1) {
+                    this.postsPage = Math.max(1, Math.ceil(result.total / this.postsPerPage));
+                    result = await window.supabaseService.fetchPostsPage({
+                        limit: this.postsPerPage,
+                        offset: (this.postsPage - 1) * this.postsPerPage,
+                        query
+                    });
+                }
+                if (result) {
+                    pagePosts = result.posts;
+                    total = result.total;
+                    loaded = true;
+                    if (!query) this.postsAllTotal = total;
+                }
+            } catch (e) {
             }
         }
-        if (posts.length === 0) {
-            posts = await window.quizDB.getAllPosts();
+
+        if (!loaded) {
+            const all = (await window.quizDB.getAllPosts()) || [];
+            all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+            const q = query.toLowerCase();
+            const filtered = q ? all.filter(p => (p.postText || '').toLowerCase().includes(q) || (p.hint || '').toLowerCase().includes(q)) : all;
+            total = filtered.length;
+            if (!q) this.postsAllTotal = total;
+            const maxPage = Math.max(1, Math.ceil(total / this.postsPerPage));
+            if (this.postsPage > maxPage) this.postsPage = maxPage;
+            const start = (this.postsPage - 1) * this.postsPerPage;
+            pagePosts = filtered.slice(start, start + this.postsPerPage);
         }
 
-        const badge = document.getElementById('admin-total-posts-badge');
-        if (badge) badge.textContent = `${posts.length} постов`;
+        if (requestId !== this.postsRequestId) return;
 
-        posts.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        this.cachedPosts = posts;
+        const badge = document.getElementById('admin-total-posts-badge');
+        if (badge && this.postsAllTotal !== null) badge.textContent = `${this.postsAllTotal} постов`;
+
+        this.cachedPosts = pagePosts;
+        this.postsTotal = total;
         this.renderPostsTable();
     }
 
@@ -673,28 +713,15 @@ class AdminManager {
         const tableBody = document.getElementById('admin-posts-tbody');
         if (!tableBody) return;
 
-        const posts = this.cachedPosts || [];
-        const query = (this.postsSearch || '').trim().toLowerCase();
+        const query = (this.postsSearch || '').trim();
+        const pagePosts = this.cachedPosts || [];
 
-        const filtered = posts.filter(p => {
-            if (!query) return true;
-            const author = window.authorsManager.getById(p.correctAuthorId);
-            const authorName = (author?.name || p.correctAuthorId || '').toLowerCase();
-            const authorHandle = (author?.handle || '').toLowerCase();
-            const text = (p.postText || '').toLowerCase();
-            const hint = (p.hint || '').toLowerCase();
-            const tags = Array.isArray(p.tags) ? p.tags.join(' ').toLowerCase() : '';
-            return authorName.includes(query) || authorHandle.includes(query) || text.includes(query) || hint.includes(query) || tags.includes(query);
-        });
-
-        const totalItems = filtered.length;
+        const totalItems = this.postsTotal || 0;
         const totalPages = Math.max(1, Math.ceil(totalItems / this.postsPerPage));
-        if (this.postsPage > totalPages) this.postsPage = totalPages;
         if (this.postsPage < 1) this.postsPage = 1;
 
         const startIdx = (this.postsPage - 1) * this.postsPerPage;
-        const endIdx = Math.min(totalItems, startIdx + this.postsPerPage);
-        const pagePosts = filtered.slice(startIdx, endIdx);
+        const endIdx = startIdx + pagePosts.length;
 
         tableBody.innerHTML = '';
         if (totalItems === 0) {

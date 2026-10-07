@@ -1,5 +1,6 @@
 const https = require('https');
 const crypto = require('crypto');
+const { applyCors } = require('./_cors');
 
 const SECRET = process.env.API_SECRET || 'a8f5e3d2c1b0987654321fedcba0123456789abcdef0123456789abcdef01234';
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://vwglpnluozdgnztasrrp.supabase.co';
@@ -125,14 +126,7 @@ function verifySessionToken(token) {
 }
 
 module.exports = async (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
+    if (applyCors(req, res)) return;
 
     const action = req.query.action || (req.body && req.body.action) || 'get_questions';
 
