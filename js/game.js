@@ -15,6 +15,7 @@ class GameEngine {
         this.maxTime = 15;
         this.isAnswered = false;
         this.hintUsed = false;
+        this.gameHintUsed = false;
         this.history = [];
         this.nickname = localStorage.getItem('itd_player_nickname') || 'Аноним';
     }
@@ -75,6 +76,7 @@ class GameEngine {
         this.score = 0;
         this.streak = 0;
         this.maxStreak = 0;
+        this.gameHintUsed = false;
         this.lives = mode === 'survival' ? 3 : 0;
         this.history = [];
         
@@ -90,6 +92,7 @@ class GameEngine {
         this.currentIndex = 0;
         this.score = 0;
         this.streak = 0;
+        this.gameHintUsed = false;
         this.history = [];
 
         document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
@@ -188,12 +191,12 @@ class GameEngine {
         imgEl.src = window.safeImageSrc ? window.safeImageSrc(this.currentPost.screenshot) : this.currentPost.screenshot;
         imgEl.alt = "Скриншот поста ИТД";
 
-        const hintBtn = document.getElementById('btn-use-hint');
         const hintText = document.getElementById('hint-content');
-        hintText.classList.add('hidden');
-        hintText.textContent = this.currentPost.hint || "Обратите внимание на синтаксис, тему и манеру подачи автора.";
-        hintBtn.disabled = false;
-        hintBtn.classList.remove('used');
+        if (hintText) {
+            hintText.classList.add('hidden');
+            hintText.textContent = this.currentPost.hint || "Обратите внимание на синтаксис, тему и манеру подачи автора.";
+        }
+        this.updateHintButtonsUI();
 
         const nextBtn = document.getElementById('btn-next-question');
         nextBtn.classList.add('hidden');
@@ -291,6 +294,7 @@ class GameEngine {
         if (this.isAnswered) return;
         this.isAnswered = true;
         clearInterval(this.timer);
+        this.updateHintButtonsUI();
 
         const buttons = document.querySelectorAll('.quiz-option-btn');
         buttons.forEach(btn => {
@@ -479,15 +483,99 @@ class GameEngine {
         return 1.0;
     }
 
-    useHint() {
-        if (this.isAnswered || this.hintUsed) return;
+    updateHintButtonsUI() {
+        const btn5050 = document.getElementById('btn-hint-5050');
+        const btnText = document.getElementById('btn-use-hint');
+        const badge5050 = document.getElementById('badge-hint-5050');
+        const badgeText = document.getElementById('badge-hint-text');
+        const isUsed = Boolean(this.gameHintUsed);
+
+        if (btn5050) {
+            btn5050.disabled = isUsed || this.isAnswered;
+            if (isUsed) {
+                btn5050.classList.add('used');
+            } else {
+                btn5050.classList.remove('used');
+            }
+        }
+        if (btnText) {
+            btnText.disabled = isUsed || this.isAnswered;
+            if (isUsed) {
+                btnText.classList.add('used');
+            } else {
+                btnText.classList.remove('used');
+            }
+        }
+        if (badge5050) {
+            badge5050.textContent = isUsed ? '0/1' : '1/1';
+        }
+        if (badgeText) {
+            badgeText.textContent = isUsed ? '0/1' : '1/1';
+        }
+    }
+
+    use5050() {
+        if (this.isAnswered || this.gameHintUsed) return;
+        this.gameHintUsed = true;
+        this.hintUsed = true;
+
+        let toEliminate = [];
+        if (this.currentPost?.qToken) {
+            try {
+                const parts = this.currentPost.qToken.split('.');
+                if (parts[0]) {
+                    const normB64 = parts[0].replace(/-/g, '+').replace(/_/g, '/');
+                    const pad = normB64.length % 4;
+                    const padded = normB64 + (pad ? '='.repeat(4 - pad) : '');
+                    const jsonStr = decodeURIComponent(escape(atob(padded)));
+                    const data = JSON.parse(jsonStr);
+                    if (Array.isArray(data.elim) && data.elim.length > 0) {
+                        toEliminate = data.elim.slice(0, 2);
+                    }
+                }
+            } catch (_) {
+            }
+        }
+
+        if (toEliminate.length === 0) {
+            const correctId = this.currentPost?.correctAuthorId;
+            const distractors = (this.currentOptions || []).filter(o => o.id !== correctId);
+            const shuffled = [...distractors].sort(() => Math.random() - 0.5);
+            toEliminate = shuffled.slice(0, 2).map(o => o.id);
+        }
+
+        const buttons = document.querySelectorAll('.quiz-option-btn');
+        buttons.forEach(btn => {
+            if (toEliminate.includes(btn.dataset.authorId)) {
+                btn.classList.add('eliminated');
+                btn.disabled = true;
+            }
+        });
+
+        this.updateHintButtonsUI();
+        if (window.soundFX?.playClick) window.soundFX.playClick();
+        if (window.app?.showToast) {
+            window.app.showToast('Подсказка 50/50: исключены 2 варианта (-30 очков)', 'info');
+        }
+    }
+
+    useTextHint() {
+        if (this.isAnswered || this.gameHintUsed) return;
+        this.gameHintUsed = true;
         this.hintUsed = true;
         const hintText = document.getElementById('hint-content');
-        const hintBtn = document.getElementById('btn-use-hint');
-        hintText.classList.remove('hidden');
-        hintBtn.disabled = true;
-        hintBtn.classList.add('used');
-        window.soundFX.playClick();
+        if (hintText) {
+            hintText.classList.remove('hidden');
+        }
+        this.updateHintButtonsUI();
+        if (window.soundFX?.playClick) window.soundFX.playClick();
+        if (window.app?.showToast) {
+            window.app.showToast('Подсказка автора открыта (-30 очков)', 'info');
+        }
+    }
+
+    useHint() {
+        this.useTextHint();
     }
 
     next() {
@@ -626,7 +714,9 @@ class GameEngine {
             } else if (e.key === 'Escape' && this.mode === 'practice' && this.history && this.history.length > 0) {
                 this.finishPractice();
             } else if (e.key === 'h' || e.key === 'H' || e.key === 'р' || e.key === 'Р') {
-                this.useHint();
+                this.useTextHint();
+            } else if (e.key === 'f' || e.key === 'F' || e.key === 'а' || e.key === 'А' || e.key === '5') {
+                this.use5050();
             } else if (e.key === 'z' || e.key === 'Z' || e.key === 'я' || e.key === 'Я') {
                 this.toggleLightbox();
             }

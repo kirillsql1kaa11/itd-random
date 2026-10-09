@@ -177,9 +177,16 @@
 
             <div class="question-prompt">
                 <span class="prompt-title">Кто написал этот пост?</span>
-                <button class="btn-hint" id="btn-use-hint">
-                    Подсказка [H]
-                </button>
+                <div class="hints-toolbar" id="quiz-hints-toolbar">
+                    <button class="btn-hint" id="btn-hint-5050" type="button" title="Исключить 2 неверных варианта (штраф -30 очков, 1 раз за игру)">
+                        <span>50/50 [F]</span>
+                        <span class="hint-limit-badge" id="badge-hint-5050">1/1</span>
+                    </button>
+                    <button class="btn-hint" id="btn-use-hint" type="button" title="Показать подсказку автора (штраф -30 очков, 1 раз за игру)">
+                        <span>Подсказка [H]</span>
+                        <span class="hint-limit-badge" id="badge-hint-text">1/1</span>
+                    </button>
+                </div>
             </div>
 
             <div class="hint-box hidden" id="hint-content"></div>

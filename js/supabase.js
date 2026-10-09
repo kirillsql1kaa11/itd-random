@@ -206,7 +206,7 @@ class SupabaseService {
         }
 
         try {
-            const data = await this.request(`leaderboard?select=*&order=score.desc&limit=${limit}`);
+            const data = await this.request('leaderboard?select=nickname,score,streak,accuracy,mode,created_at&order=score.desc&limit=100');
             return data;
         } catch (e) {
             const local = JSON.parse(localStorage.getItem('itd_local_leaderboard') || '[]');

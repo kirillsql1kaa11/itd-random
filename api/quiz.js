@@ -68,10 +68,11 @@ function createAnswerHash(postId, authorId) {
     return createHmacHash(`${postId}:${authorId}`);
 }
 
-function createQuestionToken(postId, correctAuthorId) {
+function createQuestionToken(postId, correctAuthorId, elimIds = []) {
     const payload = Buffer.from(JSON.stringify({
         id: postId,
         ansHash: createAnswerHash(postId, correctAuthorId),
+        elim: elimIds,
         exp: Date.now() + 15 * 60 * 1000
     })).toString('base64url');
 
@@ -193,7 +194,8 @@ module.exports = async (req, res) => {
                         verified: Boolean(a.verified)
                     }));
 
-                const qToken = createQuestionToken(post.id, correctAuthorId);
+                const elimIds = distractors.slice(0, 2).map(d => d.id);
+                const qToken = createQuestionToken(post.id, correctAuthorId, elimIds);
 
                 return {
                     id: post.id,

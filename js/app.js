@@ -96,8 +96,12 @@ class App {
             this.switchTab('home');
         });
 
+        document.getElementById('btn-hint-5050')?.addEventListener('click', () => {
+            window.gameEngine.use5050();
+        });
+
         document.getElementById('btn-use-hint')?.addEventListener('click', () => {
-            window.gameEngine.useHint();
+            window.gameEngine.useTextHint();
         });
 
         document.getElementById('post-screenshot-container')?.addEventListener('click', () => {

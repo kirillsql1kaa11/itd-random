@@ -50,10 +50,11 @@ def safe_equal(a, b):
 def create_answer_hash(post_id, author_id):
     return hmac.new(SECRET, f"{post_id}:{author_id}".encode('utf-8'), hashlib.sha256).hexdigest()
 
-def create_question_token(post_id, correct_author_id):
+def create_question_token(post_id, correct_author_id, elim_ids=None):
     data = {
         'id': post_id,
         'ansHash': create_answer_hash(post_id, correct_author_id),
+        'elim': elim_ids or [],
         'exp': int(time.time()) + 900
     }
     payload = base64.urlsafe_b64encode(json.dumps(data).encode('utf-8')).decode('utf-8').rstrip('=')
@@ -144,16 +145,59 @@ def get_stored_admin_password():
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
+        self.allowed_origin = 'https://itd-random.vercel.app'
         super().__init__(*args, directory=DIRECTORY, **kwargs)
 
+    def get_allowed_origins(self):
+        origins = {'https://itd-random.vercel.app', 'http://localhost:3000', 'http://127.0.0.1:3000'}
+        env_url = os.environ.get('APP_URL')
+        if env_url:
+            for part in env_url.replace(',', ' ').split():
+                clean = part.strip()
+                if clean:
+                    if not clean.startswith('http://') and not clean.startswith('https://'):
+                        clean = 'https://' + clean
+                    try:
+                        p = urllib.parse.urlparse(clean)
+                        origins.add(f"{p.scheme}://{p.netloc}".lower())
+                    except Exception:
+                        pass
+        return origins
+
+    def check_origin(self):
+        origin = self.headers.get('Origin')
+        allowed = self.get_allowed_origins()
+        if origin:
+            norm = origin.strip().lower()
+            if norm not in allowed:
+                self.send_json(403, {'error': 'Origin not allowed'})
+                return False
+            self.allowed_origin = norm
+            return True
+        referer = self.headers.get('Referer')
+        if referer:
+            try:
+                p = urllib.parse.urlparse(referer)
+                norm_ref = f"{p.scheme}://{p.netloc}".lower()
+                if norm_ref not in allowed:
+                    self.send_json(403, {'error': 'Origin not allowed'})
+                    return False
+            except Exception:
+                pass
+        self.allowed_origin = 'https://itd-random.vercel.app'
+        return True
+
     def end_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
+        allow = getattr(self, 'allowed_origin', 'https://itd-random.vercel.app')
+        self.send_header('Access-Control-Allow-Origin', allow)
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Authorization')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
         super().end_headers()
 
     def do_OPTIONS(self):
+        if not self.check_origin():
+            return
         self.send_response(200)
         self.end_headers()
 
@@ -166,15 +210,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path.startswith('/api/quiz'):
+            if not self.check_origin():
+                return
             self.handle_api_quiz_get(parsed)
             return
         elif parsed.path.startswith('/api/admin'):
+            if not self.check_origin():
+                return
             self.handle_api_admin_get(parsed)
             return
         super().do_GET()
 
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path.startswith('/api/'):
+            if not self.check_origin():
+                return
         content_len = int(self.headers.get('Content-Length', 0))
         body = {}
         if content_len > 0:
@@ -257,7 +308,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 'verified': bool(a.get('verified'))
             } for a in combined]
 
-            q_token = create_question_token(p.get('id'), correct_id)
+            elim_ids = [a.get('id') for a in distractors[:2]]
+            q_token = create_question_token(p.get('id'), correct_id, elim_ids)
 
             questions.append({
                 'id': p.get('id'),
