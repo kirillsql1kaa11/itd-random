@@ -28,7 +28,7 @@ def run_build():
         shutil.copyfile(os.path.join(ROOT, 'dist', 'style.min.css'), os.path.join(ROOT, 'css', 'style.min.css'))
         print("Build complete!")
     else:
-        print("esbuild not found. Run via node build.js on Vercel or install esbuild.")
+        print("esbuild not found. Run via node build.js or install esbuild.")
 
 if __name__ == '__main__':
     run_build()

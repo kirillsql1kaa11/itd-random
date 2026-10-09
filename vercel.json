@@ -1,6 +1,7 @@
 {
   "version": 2,
   "name": "itd-quiz",
+  "buildCommand": null,
   "cleanUrls": true,
   "trailingSlash": false,
   "headers": [
