@@ -126,6 +126,38 @@ function verifySessionToken(token) {
     }
 }
 
+let cachedAuthors = [];
+let cachedAuthorsTime = 0;
+let cachedPostIds = [];
+let cachedPostIdsTime = 0;
+
+async function getCachedAuthors() {
+    const now = Date.now();
+    if (cachedAuthors.length > 0 && (now - cachedAuthorsTime < 300000)) {
+        return cachedAuthors;
+    }
+    const data = await fetchSupabase('authors?select=*');
+    if (Array.isArray(data) && data.length > 0) {
+        cachedAuthors = data;
+        cachedAuthorsTime = now;
+    }
+    return cachedAuthors.length > 0 ? cachedAuthors : (Array.isArray(data) ? data : []);
+}
+
+async function getCachedPostIds() {
+    const now = Date.now();
+    if (cachedPostIds.length > 0 && (now - cachedPostIdsTime < 120000)) {
+        return cachedPostIds;
+    }
+    const idRows = await fetchSupabase('posts?select=id');
+    const ids = (Array.isArray(idRows) ? idRows : []).map(r => r.id).filter(id => id !== null && id !== undefined);
+    if (ids.length > 0) {
+        cachedPostIds = ids;
+        cachedPostIdsTime = now;
+    }
+    return cachedPostIds.length > 0 ? cachedPostIds : ids;
+}
+
 module.exports = async (req, res) => {
     if (applyCors(req, res)) return;
 
@@ -135,13 +167,10 @@ module.exports = async (req, res) => {
         if (action === 'get_questions' || req.method === 'GET') {
             const mode = req.query.mode || 'blitz';
             
-            const [idRows, authorsData] = await Promise.all([
-                fetchSupabase('posts?select=id'),
-                fetchSupabase('authors?select=*')
+            const [allIds, authors] = await Promise.all([
+                getCachedPostIds(),
+                getCachedAuthors()
             ]);
-
-            const allIds = (Array.isArray(idRows) ? idRows : []).map(r => r.id).filter(id => id !== null && id !== undefined);
-            const authors = Array.isArray(authorsData) ? authorsData : [];
 
             if (allIds.length === 0) {
                 return res.status(200).json({ questions: [], total: 0 });

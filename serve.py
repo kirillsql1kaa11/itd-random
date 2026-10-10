@@ -38,6 +38,34 @@ def fetch_supabase(endpoint, method='GET', body=None, prefer=None):
     except Exception:
         return None
 
+_CACHE_AUTHORS = []
+_CACHE_AUTHORS_TIME = 0
+_CACHE_POST_IDS = []
+_CACHE_POST_IDS_TIME = 0
+
+def get_cached_authors():
+    global _CACHE_AUTHORS, _CACHE_AUTHORS_TIME
+    now = time.time()
+    if _CACHE_AUTHORS and (now - _CACHE_AUTHORS_TIME < 300):
+        return _CACHE_AUTHORS
+    data = fetch_supabase('authors?select=*') or []
+    if data:
+        _CACHE_AUTHORS = data
+        _CACHE_AUTHORS_TIME = now
+    return _CACHE_AUTHORS or data
+
+def get_cached_post_ids():
+    global _CACHE_POST_IDS, _CACHE_POST_IDS_TIME
+    now = time.time()
+    if _CACHE_POST_IDS and (now - _CACHE_POST_IDS_TIME < 120):
+        return _CACHE_POST_IDS
+    id_rows = fetch_supabase('posts?select=id') or []
+    ids = [r.get('id') for r in id_rows if isinstance(r, dict) and r.get('id') is not None]
+    if ids:
+        _CACHE_POST_IDS = ids
+        _CACHE_POST_IDS_TIME = now
+    return _CACHE_POST_IDS or ids
+
 def safe_equal(a, b):
     if not isinstance(a, str) or not isinstance(b, str):
         return False
@@ -241,18 +269,38 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         elif parsed.path.startswith('/api/admin'):
             self.handle_api_admin_post(parsed, body)
             return
+        elif parsed.path.startswith('/api/suggest'):
+            self.handle_api_suggest_post(parsed, body)
+            return
 
         self.send_json(404, {'error': 'Not Found'})
+
+    def handle_api_suggest_post(self, parsed, body):
+        screenshot = body.get('screenshot')
+        if not screenshot or not isinstance(screenshot, str):
+            self.send_json(400, {'error': 'Некорректный скриншот'})
+            return
+
+        record = {
+            'author_id': str(body.get('author_id', '') or '')[:100] or None,
+            'author_name': str(body.get('author_name', '') or 'Не указан')[:100],
+            'screenshot': screenshot,
+            'post_text': str(body.get('post_text', '') or '')[:2000],
+            'submitted_by': str(body.get('submitted_by', '') or 'Аноним')[:50],
+            'status': 'pending'
+        }
+
+        fetch_supabase('suggestions_posts', method='POST', body=record, prefer='return=minimal')
+        self.send_json(200, {'ok': True})
 
     def handle_api_quiz_get(self, parsed):
         qs = urllib.parse.parse_qs(parsed.query)
         action = qs.get('action', ['get_questions'])[0]
         mode = qs.get('mode', ['blitz'])[0]
 
-        id_rows = fetch_supabase('posts?select=id') or []
-        authors = fetch_supabase('authors?select=*') or []
+        all_ids = get_cached_post_ids()
+        authors = get_cached_authors()
 
-        all_ids = [r.get('id') for r in id_rows if isinstance(r, dict) and r.get('id') is not None]
         if not all_ids:
             self.send_json(200, {'questions': [], 'total': 0})
             return

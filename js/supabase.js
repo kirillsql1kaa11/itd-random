@@ -285,15 +285,29 @@ class SupabaseService {
         localStorage.setItem('itd_local_suggestions', JSON.stringify(localSuggestions));
 
         if (this.isConfigured) {
+            let sentViaApi = false;
             try {
-                await this.apiCall('suggest', {
+                const res = await this.apiCall('suggest', {
                     method: 'POST',
                     headers: { 'Authorization': '' },
                     body: item
                 });
+                if (res && res.ok) {
+                    sentViaApi = true;
+                }
             } catch (e) {
                 if (/\b(413|429)\b|МБ|много|большой/.test(e.message || '')) {
                     throw e;
+                }
+            }
+
+            if (!sentViaApi) {
+                try {
+                    await this.request('suggestions_posts', {
+                        method: 'POST',
+                        body: item
+                    });
+                } catch (e) {
                 }
             }
         }
@@ -312,9 +326,13 @@ class SupabaseService {
             }
         }
 
-        if (list.length === 0) {
-            list = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
-        }
+        const local = JSON.parse(localStorage.getItem('itd_local_suggestions') || '[]');
+        const existingIds = new Set(list.map(item => String(item.id)));
+        local.forEach(item => {
+            if (!existingIds.has(String(item.id))) {
+                list.push(item);
+            }
+        });
 
         const rejected = JSON.parse(localStorage.getItem('itd_rejected_post_ids') || '[]');
         const approved = JSON.parse(localStorage.getItem('itd_approved_post_ids') || '[]');
@@ -431,26 +449,37 @@ class SupabaseService {
         if (badge && badge.trim()) {
             fullBio += `\n[BADGE: ${badge.trim()}]`;
         }
+        if (avatarColor) {
+            fullBio += `\n[COLOR: ${avatarColor}]`;
+        }
 
-        const item = {
+        const cleanHandle = handle ? (handle.startsWith('@') ? handle.trim() : '@' + handle.trim()) : '@' + (name || '').trim().toLowerCase().replace(/[^a-z0-9_]/gi, '');
+
+        const dbItem = {
             name: (name || '').trim(),
-            handle: handle ? (handle.startsWith('@') ? handle.trim() : '@' + handle.trim()) : '@' + (name || '').trim().toLowerCase().replace(/[^a-z0-9_]/gi, ''),
+            handle: cleanHandle,
             bio: fullBio,
-            avatar_color: avatarColor || null,
-            badge: (badge || '').trim() || null,
             submitted_by: submittedBy || 'Аноним',
             status: 'pending'
         };
 
+        const localItem = {
+            ...dbItem,
+            id: 'sugg_auth_' + Date.now(),
+            avatar_color: avatarColor || null,
+            badge: (badge || '').trim() || null,
+            created_at: new Date().toISOString()
+        };
+
         const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
-        local.unshift({ ...item, id: 'sugg_auth_' + Date.now(), created_at: new Date().toISOString() });
+        local.unshift(localItem);
         localStorage.setItem('itd_local_author_suggestions', JSON.stringify(local));
 
         if (this.isConfigured) {
             try {
                 await this.request('suggestions_authors', {
                     method: 'POST',
-                    body: item
+                    body: dbItem
                 });
             } catch (e) {
             }
@@ -470,24 +499,56 @@ class SupabaseService {
             }
         }
 
-        if (list.length === 0) {
-            list = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
-        }
+        const local = JSON.parse(localStorage.getItem('itd_local_author_suggestions') || '[]');
+        const existingIds = new Set(list.map(item => String(item.id)));
+        local.forEach(item => {
+            if (!existingIds.has(String(item.id))) {
+                list.push(item);
+            }
+        });
 
         const rejected = JSON.parse(localStorage.getItem('itd_rejected_author_ids') || '[]');
         const approved = JSON.parse(localStorage.getItem('itd_approved_author_ids') || '[]');
 
-        return list.filter(item => {
+        list = list.filter(item => {
             if (item.status && item.status !== 'pending') return false;
             if (item.id && rejected.includes(String(item.id))) return false;
             if (item.id && approved.includes(String(item.id))) return false;
             return true;
+        });
+
+        return list.map(item => {
+            let rawBio = item.bio || '';
+            let avatarColor = item.avatar_color || null;
+            let badge = item.badge || null;
+            const colorMatch = rawBio.match(/\[COLOR:\s*([^\]]+)\]/);
+            if (colorMatch) {
+                avatarColor = colorMatch[1].trim();
+                rawBio = rawBio.replace(/\[COLOR:\s*[^\]]+\]/, '').trim();
+            }
+            const badgeMatch = rawBio.match(/\[BADGE:\s*([^\]]+)\]/);
+            if (badgeMatch) {
+                badge = badgeMatch[1].trim();
+                rawBio = rawBio.replace(/\[BADGE:\s*[^\]]+\]/, '').trim();
+            }
+            return {
+                ...item,
+                bio: rawBio,
+                avatar_color: avatarColor,
+                badge: badge
+            };
         });
     }
 
     async approveSuggestedAuthor(suggestion) {
         let rawBio = suggestion.bio || '';
         let badge = suggestion.badge || 'Автор ИТД';
+        let avatarColor = suggestion.avatar_color || suggestion.avatarColor || null;
+        const colorMatch = rawBio.match(/\[COLOR:\s*([^\]]+)\]/);
+        if (colorMatch) {
+            avatarColor = colorMatch[1].trim();
+            rawBio = rawBio.replace(/\[COLOR:\s*[^\]]+\]/, '').trim();
+        }
         const badgeMatch = rawBio.match(/\[BADGE:\s*([^\]]+)\]/);
         if (badgeMatch) {
             badge = badgeMatch[1].trim();
@@ -518,7 +579,7 @@ class SupabaseService {
             'linear-gradient(135deg, #d946ef, #f59e0b)',
             'linear-gradient(135deg, #0ea5e9, #6366f1)'
         ];
-        const avatarColor = suggestion.avatar_color || suggestion.avatarColor || colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+        avatarColor = avatarColor || colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
 
         const authorRecord = {
             id,

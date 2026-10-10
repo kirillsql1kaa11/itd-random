@@ -20,6 +20,12 @@ class GameEngine {
         this.questionTextHintRevealed = false;
         this.history = [];
         this.nickname = localStorage.getItem('itd_player_nickname') || 'Аноним';
+        this.prefetchedQuestions = null;
+        this.prefetchedSessionToken = null;
+        this.prefetchedMode = null;
+        this.prefetchedTime = 0;
+        this.prefetchPromise = null;
+        this.isLoadingQuiz = false;
     }
 
     async init() {
@@ -31,34 +37,154 @@ class GameEngine {
         localStorage.setItem('itd_player_nickname', this.nickname);
     }
 
+    async prefetchQuestions(mode = 'blitz') {
+        if (this.prefetchPromise && this.prefetchedMode === mode) {
+            return this.prefetchPromise;
+        }
+        if (this.prefetchedQuestions && this.prefetchedMode === mode && (Date.now() - this.prefetchedTime < 10 * 60 * 1000)) {
+            return this.prefetchedQuestions;
+        }
+
+        this.prefetchedMode = mode;
+        this.prefetchPromise = (async () => {
+            try {
+                const questions = await window.supabaseService.getQuizQuestions(mode);
+                if (Array.isArray(questions) && questions.length > 0) {
+                    this.prefetchedQuestions = questions;
+                    this.prefetchedSessionToken = window.supabaseService?.sessionToken || null;
+                    this.prefetchedTime = Date.now();
+                    if (questions[0] && questions[0].screenshot) {
+                        const img = new Image();
+                        img.decoding = 'async';
+                        img.src = window.safeImageSrc ? window.safeImageSrc(questions[0].screenshot) : questions[0].screenshot;
+                    }
+                    return questions;
+                }
+            } catch (e) {
+            } finally {
+                this.prefetchPromise = null;
+            }
+            return null;
+        })();
+
+        return this.prefetchPromise;
+    }
+
+    showQuizSkeleton() {
+        this.isLoadingQuiz = true;
+        const imgEl = document.getElementById('post-screenshot-img');
+        const cardContainer = document.getElementById('post-screenshot-container');
+        if (imgEl) imgEl.style.display = 'none';
+
+        let skeletonBox = document.getElementById('quiz-skeleton-card-box');
+        if (!skeletonBox && cardContainer) {
+            skeletonBox = document.createElement('div');
+            skeletonBox.id = 'quiz-skeleton-card-box';
+            skeletonBox.className = 'quiz-skeleton-card';
+            skeletonBox.innerHTML = `
+                <div class="quiz-skeleton-spinner"></div>
+                <span>Загрузка вопроса...</span>
+            `;
+            cardContainer.appendChild(skeletonBox);
+        } else if (skeletonBox) {
+            skeletonBox.style.display = 'flex';
+        }
+
+        const roundLabel = document.getElementById('stat-round-label');
+        if (roundLabel) roundLabel.textContent = 'Подготовка...';
+        const timerVal = document.getElementById('stat-timer');
+        if (timerVal) timerVal.textContent = '--';
+
+        const btn5050 = document.getElementById('btn-hint-5050');
+        const btnHint = document.getElementById('btn-use-hint');
+        if (btn5050) btn5050.disabled = true;
+        if (btnHint) btnHint.disabled = true;
+
+        const optionsContainer = document.getElementById('quiz-options-grid');
+        if (optionsContainer) {
+            optionsContainer.innerHTML = '';
+            for (let i = 1; i <= 4; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'quiz-option-btn quiz-skeleton-option';
+                btn.innerHTML = `
+                    <div class="option-key-badge">${i}</div>
+                    <div class="option-avatar">?</div>
+                    <div class="option-meta">
+                        <span class="option-name"></span>
+                        <span class="option-handle"></span>
+                    </div>
+                `;
+                optionsContainer.appendChild(btn);
+            }
+        }
+    }
+
+    hideQuizSkeleton() {
+        this.isLoadingQuiz = false;
+        const imgEl = document.getElementById('post-screenshot-img');
+        const skeletonBox = document.getElementById('quiz-skeleton-card-box');
+        if (skeletonBox) skeletonBox.style.display = 'none';
+        if (imgEl) imgEl.style.display = '';
+    }
+
     async start(mode = 'blitz') {
         this.mode = mode;
         this.sessionToken = null;
+
+        document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
+        document.getElementById('view-quiz').classList.remove('hidden');
+
         let allPosts = [];
 
-        try {
-            const secureQuestions = await window.supabaseService.getQuizQuestions(mode);
-            if (Array.isArray(secureQuestions) && secureQuestions.length > 0) {
-                allPosts = secureQuestions;
-                this.sessionToken = window.supabaseService?.sessionToken || null;
-            }
-        } catch (e) {
-        }
-
-        if (allPosts.length === 0) {
-            if (window.supabaseService?.isConfigured && typeof window.supabaseService.fetchRemotePosts === 'function') {
+        if (this.prefetchedQuestions && this.prefetchedMode === mode && (Date.now() - this.prefetchedTime < 10 * 60 * 1000)) {
+            allPosts = this.prefetchedQuestions;
+            this.sessionToken = this.prefetchedSessionToken || window.supabaseService?.sessionToken || null;
+            this.prefetchedQuestions = null;
+            this.prefetchedSessionToken = null;
+            this.prefetchedTime = 0;
+        } else {
+            this.showQuizSkeleton();
+            if (this.prefetchPromise && this.prefetchedMode === mode) {
                 try {
-                    const remote = await window.supabaseService.fetchRemotePosts();
-                    if (Array.isArray(remote) && remote.length > 0) {
-                        allPosts = remote;
+                    const prefetched = await this.prefetchPromise;
+                    if (Array.isArray(prefetched) && prefetched.length > 0) {
+                        allPosts = prefetched;
+                        this.sessionToken = this.prefetchedSessionToken || window.supabaseService?.sessionToken || null;
+                        this.prefetchedQuestions = null;
+                        this.prefetchedSessionToken = null;
                     }
                 } catch (e) {
                 }
             }
+
             if (allPosts.length === 0) {
-                allPosts = await window.quizDB.getAllPosts();
+                try {
+                    const secureQuestions = await window.supabaseService.getQuizQuestions(mode);
+                    if (Array.isArray(secureQuestions) && secureQuestions.length > 0) {
+                        allPosts = secureQuestions;
+                        this.sessionToken = window.supabaseService?.sessionToken || null;
+                    }
+                } catch (e) {
+                }
+            }
+
+            if (allPosts.length === 0) {
+                if (window.supabaseService?.isConfigured && typeof window.supabaseService.fetchRemotePosts === 'function') {
+                    try {
+                        const remote = await window.supabaseService.fetchRemotePosts();
+                        if (Array.isArray(remote) && remote.length > 0) {
+                            allPosts = remote;
+                        }
+                    } catch (e) {
+                    }
+                }
+                if (allPosts.length === 0) {
+                    allPosts = await window.quizDB.getAllPosts();
+                }
             }
         }
+
+        this.hideQuizSkeleton();
 
         if (!allPosts || allPosts.length === 0) {
             window.app.showToast('В базе пока нет постов! Добавьте пост через панель управления или предложите на главной.', 'info');
@@ -83,11 +209,12 @@ class GameEngine {
         this.questionTextHintRevealed = false;
         this.lives = mode === 'survival' ? 3 : 0;
         this.history = [];
-        
-        document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
-        document.getElementById('view-quiz').classList.remove('hidden');
 
         this.loadCurrentQuestion();
+
+        setTimeout(() => {
+            this.prefetchQuestions(mode);
+        }, 1500);
     }
 
     testSinglePost(post) {

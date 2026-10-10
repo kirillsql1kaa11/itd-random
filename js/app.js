@@ -34,6 +34,7 @@ class App {
         window.gameEngine.init();
 
         this.switchTab('home');
+        window.gameEngine.prefetchQuestions(this.selectedMode);
 
         window.gameEngine.toggleLightboxCustom = (src) => {
             const lightbox = document.getElementById('image-lightbox');
@@ -195,13 +196,13 @@ class App {
                 document.querySelectorAll('.btn-home-mode').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 this.selectedMode = btn.dataset.mode;
+                window.gameEngine.prefetchQuestions(this.selectedMode);
             });
         });
 
         document.getElementById('btn-home-play')?.addEventListener('click', () => {
             const nick = nicknameInput?.value.trim() || this.generateRandomNickname();
             window.gameEngine.setNickname(nick);
-            this.switchTab('quiz');
             window.gameEngine.start(this.selectedMode);
         });
 

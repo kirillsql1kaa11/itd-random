@@ -507,12 +507,14 @@ class AdminManager {
             card.className = 'admin-author-suggestion-card';
 
             const firstChar = (item.name && item.name.length > 0 ? item.name[0] : '?').toUpperCase();
+            const avatarStyle = item.avatar_color ? `style="background:${escapeHtml(safeCssValue(item.avatar_color))};"` : '';
             card.innerHTML = `
-                <div class="aasc-avatar">${escapeHtml(firstChar)}</div>
+                <div class="aasc-avatar" ${avatarStyle}>${escapeHtml(firstChar)}</div>
                 <div class="aasc-info">
                     <div class="aasc-header-row">
                         <strong class="aasc-name">${escapeHtml(item.name)}</strong>
                         <span class="aasc-handle">${escapeHtml(item.handle || '@' + item.name)}</span>
+                        ${item.badge ? `<span class="author-badge-pill" style="margin-left:6px; font-size:10px;">${escapeHtml(item.badge)}</span>` : ''}
                     </div>
                     <div class="aasc-meta">Предложил: <strong>${escapeHtml(item.submitted_by || 'Аноним')}</strong></div>
                     ${item.bio ? `<div class="aasc-bio">${escapeHtml(item.bio)}</div>` : ''}
