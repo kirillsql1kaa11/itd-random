@@ -15,7 +15,9 @@ class GameEngine {
         this.maxTime = 15;
         this.isAnswered = false;
         this.hintUsed = false;
-        this.gameHintUsed = false;
+        this.hints5050Left = 1;
+        this.textHintsLeft = 3;
+        this.questionTextHintRevealed = false;
         this.history = [];
         this.nickname = localStorage.getItem('itd_player_nickname') || 'Аноним';
     }
@@ -76,7 +78,9 @@ class GameEngine {
         this.score = 0;
         this.streak = 0;
         this.maxStreak = 0;
-        this.gameHintUsed = false;
+        this.hints5050Left = 1;
+        this.textHintsLeft = 3;
+        this.questionTextHintRevealed = false;
         this.lives = mode === 'survival' ? 3 : 0;
         this.history = [];
         
@@ -92,7 +96,9 @@ class GameEngine {
         this.currentIndex = 0;
         this.score = 0;
         this.streak = 0;
-        this.gameHintUsed = false;
+        this.hints5050Left = 1;
+        this.textHintsLeft = 3;
+        this.questionTextHintRevealed = false;
         this.history = [];
 
         document.querySelectorAll('.app-view').forEach(v => v.classList.add('hidden'));
@@ -115,6 +121,7 @@ class GameEngine {
         this.currentPost = this.postsPool[this.currentIndex];
         this.isAnswered = false;
         this.hintUsed = false;
+        this.questionTextHintRevealed = false;
 
         if (Array.isArray(this.currentPost.options) && this.currentPost.options.length > 0) {
             this.currentOptions = this.currentPost.options;
@@ -488,35 +495,34 @@ class GameEngine {
         const btnText = document.getElementById('btn-use-hint');
         const badge5050 = document.getElementById('badge-hint-5050');
         const badgeText = document.getElementById('badge-hint-text');
-        const isUsed = Boolean(this.gameHintUsed);
 
         if (btn5050) {
-            btn5050.disabled = isUsed || this.isAnswered;
-            if (isUsed) {
+            btn5050.disabled = this.hints5050Left <= 0 || this.isAnswered;
+            if (this.hints5050Left <= 0) {
                 btn5050.classList.add('used');
             } else {
                 btn5050.classList.remove('used');
             }
         }
         if (btnText) {
-            btnText.disabled = isUsed || this.isAnswered;
-            if (isUsed) {
+            btnText.disabled = this.textHintsLeft <= 0 || this.questionTextHintRevealed || this.isAnswered;
+            if (this.textHintsLeft <= 0) {
                 btnText.classList.add('used');
             } else {
                 btnText.classList.remove('used');
             }
         }
         if (badge5050) {
-            badge5050.textContent = isUsed ? '0/1' : '1/1';
+            badge5050.textContent = `${this.hints5050Left}/1`;
         }
         if (badgeText) {
-            badgeText.textContent = isUsed ? '0/1' : '1/1';
+            badgeText.textContent = `${this.textHintsLeft}/3`;
         }
     }
 
     use5050() {
-        if (this.isAnswered || this.gameHintUsed) return;
-        this.gameHintUsed = true;
+        if (this.isAnswered || this.hints5050Left <= 0) return;
+        this.hints5050Left--;
         this.hintUsed = true;
 
         let toEliminate = [];
@@ -560,8 +566,9 @@ class GameEngine {
     }
 
     useTextHint() {
-        if (this.isAnswered || this.gameHintUsed) return;
-        this.gameHintUsed = true;
+        if (this.isAnswered || this.textHintsLeft <= 0 || this.questionTextHintRevealed) return;
+        this.textHintsLeft--;
+        this.questionTextHintRevealed = true;
         this.hintUsed = true;
         const hintText = document.getElementById('hint-content');
         if (hintText) {

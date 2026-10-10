@@ -257,11 +257,17 @@ class SupabaseService {
         return record;
     }
 
-    async submitPostSuggestion({ authorId, authorName, screenshot, postText, postUrl, submittedBy }) {
+    async submitPostSuggestion({ authorId, authorName, screenshot, postText, postUrl, hint, tags, submittedBy }) {
         let fullText = (postText || '').trim();
         const cleanUrl = (postUrl || '').trim();
         if (cleanUrl) {
             fullText = fullText ? `${fullText}\n\n[URL: ${cleanUrl}]` : `[URL: ${cleanUrl}]`;
+        }
+        if (hint && hint.trim()) {
+            fullText += `\n[HINT: ${hint.trim()}]`;
+        }
+        if (tags && tags.trim()) {
+            fullText += `\n[TAGS: ${tags.trim()}]`;
         }
 
         const item = {
@@ -337,14 +343,28 @@ class SupabaseService {
     }
 
     async approveSuggestedPost(suggestion, correctAuthorId) {
+        let hint = suggestion.post_url ? `Оригинал: ${suggestion.post_url}` : '';
+        let tags = suggestion.post_url ? ['#итд', '#оригинал'] : ['#итд'];
+        let postText = suggestion.post_text || '';
+        const hintMatch = postText.match(/\[HINT:\s*([^\]]+)\]/);
+        if (hintMatch) {
+            hint = hintMatch[1].trim();
+            postText = postText.replace(/\[HINT:\s*[^\]]+\]/, '').trim();
+        }
+        const tagsMatch = postText.match(/\[TAGS:\s*([^\]]+)\]/);
+        if (tagsMatch) {
+            tags = tagsMatch[1].split(',').map(t => t.trim().startsWith('#') ? t.trim() : '#' + t.trim()).filter(Boolean);
+            postText = postText.replace(/\[TAGS:\s*[^\]]+\]/, '').trim();
+        }
+
         const postRecord = {
             id: 'post_' + Date.now(),
             correctAuthorId: correctAuthorId || suggestion.author_id,
-            postText: suggestion.post_text || '',
+            postText: postText,
             screenshot: suggestion.screenshot,
-            hint: suggestion.post_url ? `Оригинал: ${suggestion.post_url}` : '',
+            hint: hint,
             difficulty: 'normal',
-            tags: suggestion.post_url ? ['#итд', '#оригинал'] : ['#итд'],
+            tags: tags,
             createdAt: Date.now()
         };
 
@@ -402,11 +422,22 @@ class SupabaseService {
         }
     }
 
-    async submitAuthorSuggestion({ name, handle, bio, submittedBy }) {
+    async submitAuthorSuggestion({ name, handle, badge, avatarColor, profileUrl, bio, submittedBy }) {
+        let fullBio = (bio || '').trim();
+        const cleanProfile = (profileUrl || '').trim();
+        if (cleanProfile) {
+            fullBio = fullBio ? `${fullBio}\n\n[PROFILE: ${cleanProfile}]` : `[PROFILE: ${cleanProfile}]`;
+        }
+        if (badge && badge.trim()) {
+            fullBio += `\n[BADGE: ${badge.trim()}]`;
+        }
+
         const item = {
             name: (name || '').trim(),
             handle: handle ? (handle.startsWith('@') ? handle.trim() : '@' + handle.trim()) : '@' + (name || '').trim().toLowerCase().replace(/[^a-z0-9_]/gi, ''),
-            bio: (bio || '').trim(),
+            bio: fullBio,
+            avatar_color: avatarColor || null,
+            badge: (badge || '').trim() || null,
             submitted_by: submittedBy || 'Аноним',
             status: 'pending'
         };
@@ -455,6 +486,17 @@ class SupabaseService {
     }
 
     async approveSuggestedAuthor(suggestion) {
+        let rawBio = suggestion.bio || '';
+        let badge = suggestion.badge || 'Автор ИТД';
+        const badgeMatch = rawBio.match(/\[BADGE:\s*([^\]]+)\]/);
+        if (badgeMatch) {
+            badge = badgeMatch[1].trim();
+            rawBio = rawBio.replace(/\[BADGE:\s*[^\]]+\]/, '').trim();
+        }
+        const profileMatch = rawBio.match(/\[PROFILE:\s*([^\]]+)\]/);
+        if (profileMatch) {
+            rawBio = rawBio.replace(/\[PROFILE:\s*[^\]]+\]/, '').trim();
+        }
         const id = (suggestion.handle ? suggestion.handle.replace('@', '') : suggestion.name)
             .toLowerCase().replace(/[^a-z0-9а-яё_]/gi, '_') + '_' + Date.now();
 
@@ -476,16 +518,16 @@ class SupabaseService {
             'linear-gradient(135deg, #d946ef, #f59e0b)',
             'linear-gradient(135deg, #0ea5e9, #6366f1)'
         ];
-        const randomColor = colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+        const avatarColor = suggestion.avatar_color || suggestion.avatarColor || colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
 
         const authorRecord = {
             id,
             name: suggestion.name,
             handle: suggestion.handle ? (suggestion.handle.startsWith('@') ? suggestion.handle : '@' + suggestion.handle) : '@' + id,
-            avatarColor: randomColor,
+            avatarColor: avatarColor,
             avatarText: suggestion.name ? suggestion.name[0].toUpperCase() : '?',
-            badge: 'Автор ИТД',
-            bio: suggestion.bio || 'Популярный автор в ИТД',
+            badge: badge,
+            bio: rawBio || 'Популярный автор в ИТД',
             verified: true
         };
 

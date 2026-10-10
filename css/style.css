@@ -1506,7 +1506,13 @@ input:focus, textarea:focus, select:focus {
     padding: 28px 24px;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
     position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
     animation: scaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#modal-suggest-author {
+    z-index: 1050;
 }
 
 @keyframes scaleUp {
@@ -2502,20 +2508,23 @@ input:focus, textarea:focus, select:focus {
     padding-right: 4px;
 }
 
+.pagination-bar,
 .admin-pagination-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 4px 4px;
+    padding: 16px 4px 6px;
     flex-wrap: wrap;
 }
 
+.pagination-info,
 .admin-pagination-info {
     font-size: 12px;
     color: var(--text-muted);
 }
 
+.pagination-controls,
 .admin-pagination-controls {
     display: flex;
     align-items: center;
@@ -2548,6 +2557,7 @@ input:focus, textarea:focus, select:focus {
     cursor: not-allowed;
 }
 
+.pagination-page-number,
 .admin-page-number {
     font-size: 12px;
     font-weight: 700;
@@ -2759,6 +2769,7 @@ input:focus, textarea:focus, select:focus {
         grid-template-columns: 1fr 1fr;
     }
 
+    .pagination-bar,
     .admin-pagination-bar {
         flex-direction: column;
         align-items: stretch;

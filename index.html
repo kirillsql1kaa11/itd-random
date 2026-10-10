@@ -182,9 +182,9 @@
                         <span>50/50 [F]</span>
                         <span class="hint-limit-badge" id="badge-hint-5050">1/1</span>
                     </button>
-                    <button class="btn-hint" id="btn-use-hint" type="button" title="Показать подсказку автора (штраф -30 очков, 1 раз за игру)">
+                    <button class="btn-hint" id="btn-use-hint" type="button" title="Показать подсказку автора (штраф -30 очков, 3 раза за игру)">
                         <span>Подсказка [H]</span>
-                        <span class="hint-limit-badge" id="badge-hint-text">1/1</span>
+                        <span class="hint-limit-badge" id="badge-hint-text">3/3</span>
                     </button>
                 </div>
             </div>
@@ -324,6 +324,15 @@
             </div>
 
             <div class="authors-catalog-grid" id="public-authors-grid"></div>
+
+            <div class="pagination-bar" id="public-authors-pagination">
+                <div class="pagination-info" id="public-authors-page-info">0 авторов</div>
+                <div class="pagination-controls">
+                    <button type="button" class="btn-page-nav" id="btn-public-authors-prev" title="Предыдущая страница">← Назад</button>
+                    <span class="pagination-page-number" id="public-authors-page-number">1 / 1</span>
+                    <button type="button" class="btn-page-nav" id="btn-public-authors-next" title="Следующая страница">Вперед →</button>
+                </div>
+            </div>
         </section>
 
         <section id="view-stats" class="app-view hidden">
@@ -648,43 +657,60 @@
     </footer>
 
     <div class="modal-backdrop hidden" id="modal-suggest-post">
-        <div class="modal-card" style="max-width: 520px;">
+        <div class="modal-card" style="max-width: 580px;">
             <button class="modal-close-btn" id="btn-close-suggest-post">✕</button>
             <h2 class="modal-title">Предложить пост для викторины</h2>
             <p class="modal-subtitle">Загрузите скриншот поста из ИТД, укажите автора и ссылку, и пост появится в игре после проверки.</p>
 
             <form id="form-suggest-post">
-                <div class="upload-dropzone" id="suggest-dropzone" style="padding: 24px 16px; margin-bottom: 14px;">
+                <div class="upload-dropzone" id="suggest-dropzone" style="margin-bottom: 14px;">
                     <div class="upload-icon">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                     </div>
-                    <div class="upload-main-text">Перетащите скриншот или нажмите для выбора</div>
-                    <div class="clipboard-badge">Или просто нажмите Ctrl + V</div>
+                    <div class="upload-main-text">Нажмите для выбора файла или перетащите скриншот</div>
+                    <div class="upload-sub-text">PNG, JPG, WebP</div>
+                    <div class="clipboard-badge">Вставка через Ctrl + V из буфера обмена</div>
                 </div>
                 <input type="file" id="suggest-file-input" accept="image/*" class="hidden">
 
                 <div class="hidden" id="suggest-preview-container" style="margin-bottom: 14px; text-align: center;">
-                    <img id="suggest-preview-img" src="" alt="Скриншот" style="max-height: 180px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border-subtle);">
+                    <img id="suggest-preview-img" src="" alt="Скриншот" style="max-height: 200px; max-width: 100%; border-radius: 8px; border: 1px solid var(--border-subtle); display: block; margin: 0 auto;">
+                    <button type="button" class="btn-small-tool" id="btn-suggest-change-img" style="margin-top: 8px;">Заменить картинку</button>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label">Автор поста (из списка)</label>
-                    <select id="suggest-author-select"></select>
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label class="form-label">Правильный автор поста * (поиск по имени или нику)</label>
+                    <div class="author-search-dropdown-wrapper">
+                        <input type="text" id="suggest-post-author-search" placeholder="Начните вводить имя или @handle автора..." autocomplete="off">
+                        <div id="suggest-author-suggestions" class="author-suggestions-dropdown hidden"></div>
+                        <input type="hidden" id="suggest-post-author-id" required>
+                    </div>
+                    <div id="suggest-selected-author-pill" class="selected-author-pill hidden"></div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+                        <span>Нет автора в списке?</span>
+                        <button type="button" class="btn-link-action" id="btn-suggest-create-author" style="background:none; border:none; color:var(--accent-blue); cursor:pointer; font-size:12px; font-weight:600; padding:0; text-decoration:underline;">+ Предложить нового автора</button>
+                    </div>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label">Либо укажите имя / @handle автора вручную</label>
-                    <input type="text" id="suggest-author-custom" placeholder="Например: @shlyapa">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label class="form-label" for="suggest-post-url">Ссылка на пост в ИТД *</label>
+                    <input type="url" id="suggest-post-url" required placeholder="https://xn--d1ah4a.com/post/..." autocomplete="off">
                 </div>
 
-                <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="suggest-post-url">Ссылка на пост в ИТД (необязательно)</label>
-                    <input type="url" id="suggest-post-url" placeholder="https://xn--d1ah4a.com/post/...">
+                <div class="form-group" style="margin-bottom: 14px;">
+                    <label class="form-label" for="suggest-post-text">Текст поста (необязательно, для поиска)</label>
+                    <textarea id="suggest-post-text" rows="2" placeholder="Краткое содержание или цитата из поста..."></textarea>
                 </div>
 
-                <div class="form-group" style="margin-bottom: 18px;">
-                    <label class="form-label">Комментарий или цитата (необязательно)</label>
-                    <textarea id="suggest-post-text" rows="2" placeholder="О чем этот пост..."></textarea>
+                <div class="form-grid" style="margin-bottom: 18px;">
+                    <div class="form-group">
+                        <label class="form-label" for="suggest-post-hint">Подсказка для игроков</label>
+                        <input type="text" id="suggest-post-hint" placeholder="Например: Автор часто пишет про деплой в пятницу">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="suggest-post-tags">Теги (через запятую)</label>
+                        <input type="text" id="suggest-post-tags" placeholder="#итд, #щитпост, #жиза">
+                    </div>
                 </div>
 
                 <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
@@ -695,22 +721,52 @@
     </div>
 
     <div class="modal-backdrop hidden" id="modal-suggest-author">
-        <div class="modal-card" style="max-width: 480px;">
+        <div class="modal-card" style="max-width: 520px;">
             <button class="modal-close-btn" id="btn-close-suggest-author-modal">✕</button>
             <h2 class="modal-title">Предложить автора ИТД</h2>
-            <p class="modal-subtitle">Укажите имя и @handle автора из ИТД. После проверки администратором он появится в викторине.</p>
+            <p class="modal-subtitle">Укажите данные автора из ИТД. После проверки администратором он появится в викторине.</p>
             <form id="form-suggest-author">
                 <div class="form-group" style="margin-bottom: 12px;">
-                    <label class="form-label" for="suggest-author-name">Имя / никнейм автора *</label>
-                    <input type="text" id="suggest-author-name" required placeholder="Например: Шляпа Боярского">
+                    <label class="form-label" for="suggest-author-name">Отображаемое имя *</label>
+                    <input type="text" id="suggest-author-name" required placeholder="Например: Шляпа Боярского" autocomplete="off">
+                    <div id="suggest-author-exists-warning" class="hidden" style="color: var(--accent-orange, #f59e0b); font-size: 11px; margin-top: 4px;"></div>
                 </div>
                 <div class="form-group" style="margin-bottom: 12px;">
                     <label class="form-label" for="suggest-author-handle">Handle (@никнейм в ИТД)</label>
-                    <input type="text" id="suggest-author-handle" placeholder="@shlyapa">
+                    <input type="text" id="suggest-author-handle" placeholder="@shlyapa" autocomplete="off">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" for="suggest-author-badge">Бейдж / титул</label>
+                    <input type="text" id="suggest-author-badge" placeholder="Топ-автор, Dev, Мемлорд...">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" for="suggest-author-color">Цвет аватара</label>
+                    <select id="suggest-author-color">
+                        <option value="linear-gradient(135deg, #0288d1, #26c6da)">Голубой неон</option>
+                        <option value="linear-gradient(135deg, #7c3aed, #ec4899)">Фиолетово-розовый</option>
+                        <option value="linear-gradient(135deg, #ef4444, #f97316)">Огненный</option>
+                        <option value="linear-gradient(135deg, #10b981, #06b6d4)">Изумрудный</option>
+                        <option value="linear-gradient(135deg, #f59e0b, #ef4444)">Янтарный</option>
+                        <option value="linear-gradient(135deg, #3b82f6, #8b5cf6)">Индиго</option>
+                        <option value="linear-gradient(135deg, #ec4899, #f43f5e)">Малиновый</option>
+                        <option value="linear-gradient(135deg, #84cc16, #22c55e)">Лаймовый</option>
+                        <option value="linear-gradient(135deg, #14b8a6, #3b82f6)">Морской</option>
+                        <option value="linear-gradient(135deg, #f97316, #facc15)">Закат</option>
+                        <option value="linear-gradient(135deg, #a855f7, #6366f1)">Лавандовый</option>
+                        <option value="linear-gradient(135deg, #06b6d4, #22c55e)">Мятный</option>
+                        <option value="linear-gradient(135deg, #f43f5e, #fb923c)">Коралловый</option>
+                        <option value="linear-gradient(135deg, #64748b, #0f172a)">Графитовый</option>
+                        <option value="linear-gradient(135deg, #d946ef, #f59e0b)">Фуксия-золото</option>
+                        <option value="linear-gradient(135deg, #0ea5e9, #6366f1)">Небесный</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" for="suggest-author-profile">Ссылка на профиль в ИТД</label>
+                    <input type="url" id="suggest-author-profile" placeholder="https://xn--d1ah4a.com/@shlyapa">
                 </div>
                 <div class="form-group" style="margin-bottom: 16px;">
-                    <label class="form-label" for="suggest-author-bio">Ссылка на профиль или стиль автора</label>
-                    <textarea id="suggest-author-bio" rows="2" placeholder="О чем обычно пишет, ссылки на профиль..."></textarea>
+                    <label class="form-label" for="suggest-author-bio">Стиль / био автора</label>
+                    <textarea id="suggest-author-bio" rows="2" placeholder="О чем обычно пишет этот автор..."></textarea>
                 </div>
                 <button type="submit" class="btn-primary-action" style="width: 100%; justify-content: center;">
                     Отправить автора на модерацию

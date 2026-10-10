@@ -4,6 +4,10 @@ class App {
         this.selectedMode = 'blitz';
         this.adminUnlocked = localStorage.getItem('itd_admin_unlocked') === 'true';
         this.suggestedScreenshotDataUrl = null;
+        this.suggestSelectedAuthor = null;
+        this.publicAuthorsPage = 1;
+        this.publicAuthorsPerPage = 20;
+        this.publicAuthorsQuery = '';
         this.lbScores = [];
         this.lbPage = 1;
         this.lbPerPage = 10;
@@ -132,6 +136,24 @@ class App {
                 this.renderLeaderboardPage();
             }
         });
+
+        document.getElementById('btn-public-authors-prev')?.addEventListener('click', () => {
+            if (this.publicAuthorsPage > 1) {
+                this.publicAuthorsPage--;
+                this.renderPublicAuthorsCatalog();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
+
+        document.getElementById('btn-public-authors-next')?.addEventListener('click', () => {
+            const authors = window.authorsManager.search(this.publicAuthorsQuery || '');
+            const totalPages = Math.max(1, Math.ceil(authors.length / this.publicAuthorsPerPage));
+            if (this.publicAuthorsPage < totalPages) {
+                this.publicAuthorsPage++;
+                this.renderPublicAuthorsCatalog();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        });
     }
 
     bindHomeLobby() {
@@ -201,6 +223,7 @@ class App {
         const authorsSearch = document.getElementById('authors-search-input');
         if (authorsSearch) {
             authorsSearch.addEventListener('input', (e) => {
+                this.publicAuthorsPage = 1;
                 this.renderPublicAuthorsCatalog(e.target.value);
             });
         }
@@ -340,12 +363,39 @@ class App {
         });
 
         document.getElementById('btn-open-suggest-author')?.addEventListener('click', () => {
-            document.getElementById('modal-suggest-author')?.classList.remove('hidden');
+            this.openSuggestAuthorModal();
         });
 
         document.getElementById('btn-close-suggest-author-modal')?.addEventListener('click', () => {
             document.getElementById('modal-suggest-author')?.classList.add('hidden');
         });
+
+        const checkAuthorExistsWarning = () => {
+            const nameVal = document.getElementById('suggest-author-name')?.value.trim().toLowerCase() || '';
+            const handleVal = (document.getElementById('suggest-author-handle')?.value.trim().toLowerCase() || '').replace(/^@+/, '');
+            const warnEl = document.getElementById('suggest-author-exists-warning');
+            if (!warnEl) return;
+            if (!nameVal && !handleVal) {
+                warnEl.classList.add('hidden');
+                warnEl.textContent = '';
+                return;
+            }
+            const existing = window.authorsManager.getAll().find(a => {
+                const aName = (a.name || '').toLowerCase();
+                const aHandle = (a.handle || a.id || '').toLowerCase().replace(/^@+/, '');
+                return (nameVal && aName === nameVal) || (handleVal && aHandle === handleVal);
+            });
+            if (existing) {
+                warnEl.textContent = `Автор «${existing.name}» (${existing.handle || '@' + existing.id}) уже есть в базе викторины!`;
+                warnEl.classList.remove('hidden');
+            } else {
+                warnEl.classList.add('hidden');
+                warnEl.textContent = '';
+            }
+        };
+
+        document.getElementById('suggest-author-name')?.addEventListener('input', checkAuthorExistsWarning);
+        document.getElementById('suggest-author-handle')?.addEventListener('input', checkAuthorExistsWarning);
 
         document.getElementById('form-suggest-author')?.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -360,6 +410,9 @@ class App {
 
             const name = document.getElementById('suggest-author-name')?.value.trim();
             const handle = document.getElementById('suggest-author-handle')?.value.trim();
+            const badge = document.getElementById('suggest-author-badge')?.value.trim();
+            const avatarColor = document.getElementById('suggest-author-color')?.value;
+            const profileUrl = document.getElementById('suggest-author-profile')?.value.trim();
             const bio = document.getElementById('suggest-author-bio')?.value.trim();
             const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
@@ -371,6 +424,9 @@ class App {
             await window.supabaseService.submitAuthorSuggestion({
                 name,
                 handle,
+                badge,
+                avatarColor,
+                profileUrl,
                 bio,
                 submittedBy: submitter
             });
@@ -378,6 +434,7 @@ class App {
             localStorage.setItem('itd_last_author_suggest_time', String(Date.now()));
             document.getElementById('modal-suggest-author')?.classList.add('hidden');
             document.getElementById('form-suggest-author')?.reset();
+            document.getElementById('suggest-author-exists-warning')?.classList.add('hidden');
             this.showToast('Спасибо! Автор отправлен на модерацию', 'success');
         });
 
@@ -431,8 +488,18 @@ class App {
         const form = document.getElementById('form-suggest-post');
         const dropzone = document.getElementById('suggest-dropzone');
         const fileInput = document.getElementById('suggest-file-input');
+        const changeImgBtn = document.getElementById('btn-suggest-change-img');
+        const createAuthorBtn = document.getElementById('btn-suggest-create-author');
 
         closeBtn?.addEventListener('click', () => modal?.classList.add('hidden'));
+
+        changeImgBtn?.addEventListener('click', () => {
+            fileInput?.click();
+        });
+
+        createAuthorBtn?.addEventListener('click', () => {
+            this.openSuggestAuthorModal();
+        });
 
         if (dropzone && fileInput) {
             dropzone.addEventListener('click', () => fileInput.click());
@@ -470,6 +537,8 @@ class App {
             }
         });
 
+        this.setupSuggestAuthorSearch();
+
         form?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const lastPostTime = parseInt(localStorage.getItem('itd_last_post_suggest_time') || '0', 10);
@@ -486,21 +555,31 @@ class App {
                 return;
             }
 
-            const authorSelect = document.getElementById('suggest-author-select');
-            const authorCustom = document.getElementById('suggest-author-custom')?.value.trim();
-            const authorName = authorCustom || authorSelect?.options[authorSelect.selectedIndex]?.text || '';
-            const authorId = authorSelect?.value || null;
-            const postText = document.getElementById('suggest-post-text')?.value.trim() || '';
+            if (!this.suggestSelectedAuthor || !this.suggestSelectedAuthor.id) {
+                this.showToast('Пожалуйста, выберите автора из списка или предложите нового!', 'error');
+                return;
+            }
+
             const postUrl = document.getElementById('suggest-post-url')?.value.trim() || '';
+            if (!postUrl) {
+                this.showToast('Пожалуйста, укажите ссылку на пост в ИТД!', 'error');
+                return;
+            }
+
+            const postText = document.getElementById('suggest-post-text')?.value.trim() || '';
+            const hint = document.getElementById('suggest-post-hint')?.value.trim() || '';
+            const tags = document.getElementById('suggest-post-tags')?.value.trim() || '';
             const submitter = localStorage.getItem('itd_player_nickname') || 'Аноним';
 
             try {
                 await window.supabaseService.submitPostSuggestion({
-                    authorId,
-                    authorName,
+                    authorId: this.suggestSelectedAuthor.id,
+                    authorName: this.suggestSelectedAuthor.name,
                     screenshot: this.suggestedScreenshotDataUrl,
                     postText,
                     postUrl,
+                    hint,
+                    tags,
                     submittedBy: submitter
                 });
             } catch (err) {
@@ -511,11 +590,121 @@ class App {
             localStorage.setItem('itd_last_post_suggest_time', String(Date.now()));
             modal.classList.add('hidden');
             form.reset();
+            this.clearSuggestSelectedAuthor();
             this.suggestedScreenshotDataUrl = null;
             document.getElementById('suggest-preview-container')?.classList.add('hidden');
             dropzone?.classList.remove('hidden');
             this.showToast('Спасибо! Пост отправлен на модерацию', 'success');
         });
+    }
+
+    setupSuggestAuthorSearch() {
+        const searchInput = document.getElementById('suggest-post-author-search');
+        const dropdown = document.getElementById('suggest-author-suggestions');
+        if (!searchInput || !dropdown) return;
+
+        const renderSuggestions = (query) => {
+            const matches = window.authorsManager.search(query);
+            dropdown.innerHTML = '';
+
+            if (matches.length === 0) {
+                const emptyRow = document.createElement('div');
+                emptyRow.style.cssText = 'padding:10px 14px; font-size:12px; color:var(--text-muted); display:flex; justify-content:space-between; align-items:center;';
+                emptyRow.innerHTML = '<span>Автор не найден</span><button type="button" class="btn-link-action" id="btn-suggest-dropdown-create" style="background:none; border:none; color:var(--accent-blue); cursor:pointer; font-size:12px; font-weight:600; padding:0; text-decoration:underline;">+ Предложить автора</button>';
+                emptyRow.querySelector('#btn-suggest-dropdown-create')?.addEventListener('click', () => {
+                    dropdown.classList.add('hidden');
+                    this.openSuggestAuthorModal();
+                });
+                dropdown.appendChild(emptyRow);
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            matches.slice(0, 8).forEach(a => {
+                const item = document.createElement('div');
+                item.className = 'author-suggestion-item';
+                item.innerHTML = `
+                    <div class="asi-avatar" style="background:${window.escapeHtml(window.safeCssValue(a.avatarColor))}">${window.escapeHtml(a.avatarText || (a.name && a.name.length > 0 ? a.name[0] : '?'))}</div>
+                    <div class="asi-meta">
+                        <div class="asi-name">${window.escapeHtml(a.name)}</div>
+                        <div class="asi-handle">${window.escapeHtml(a.handle || '@' + a.id)}</div>
+                    </div>
+                `;
+
+                item.addEventListener('click', () => {
+                    this.selectSuggestAuthor(a);
+                    dropdown.classList.add('hidden');
+                    searchInput.value = '';
+                });
+
+                dropdown.appendChild(item);
+            });
+
+            dropdown.classList.remove('hidden');
+        };
+
+        searchInput.addEventListener('focus', () => {
+            renderSuggestions(searchInput.value);
+        });
+
+        searchInput.addEventListener('input', (e) => {
+            renderSuggestions(e.target.value);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.add('hidden');
+            }
+        });
+    }
+
+    selectSuggestAuthor(author) {
+        this.suggestSelectedAuthor = author;
+        const hiddenInput = document.getElementById('suggest-post-author-id');
+        const pillContainer = document.getElementById('suggest-selected-author-pill');
+        const searchInput = document.getElementById('suggest-post-author-search');
+
+        if (hiddenInput) hiddenInput.value = author.id;
+        if (pillContainer) {
+            pillContainer.innerHTML = `
+                <div class="sap-avatar" style="background:${window.escapeHtml(window.safeCssValue(author.avatarColor))}">${window.escapeHtml(author.avatarText || (author.name && author.name.length > 0 ? author.name[0] : '?'))}</div>
+                <span class="sap-name">${window.escapeHtml(author.name)}</span>
+                <span class="sap-handle">${window.escapeHtml(author.handle || '@' + author.id)}</span>
+                <button type="button" class="sap-remove-btn" title="Сменить автора">✕</button>
+            `;
+
+            pillContainer.querySelector('.sap-remove-btn')?.addEventListener('click', () => {
+                this.clearSuggestSelectedAuthor();
+            });
+
+            pillContainer.classList.remove('hidden');
+        }
+        if (searchInput) searchInput.placeholder = 'Автор выбран (нажмите ✕ для смены)';
+    }
+
+    clearSuggestSelectedAuthor() {
+        this.suggestSelectedAuthor = null;
+        const hiddenInput = document.getElementById('suggest-post-author-id');
+        if (hiddenInput) hiddenInput.value = '';
+        const pill = document.getElementById('suggest-selected-author-pill');
+        if (pill) {
+            pill.innerHTML = '';
+            pill.classList.add('hidden');
+        }
+        const searchInput = document.getElementById('suggest-post-author-search');
+        if (searchInput) {
+            searchInput.placeholder = 'Начните вводить имя или @handle автора...';
+            searchInput.focus();
+        }
+    }
+
+    openSuggestAuthorModal() {
+        const modal = document.getElementById('modal-suggest-author');
+        if (!modal) return;
+        document.getElementById('form-suggest-author')?.reset();
+        document.getElementById('suggest-author-exists-warning')?.classList.add('hidden');
+        modal.classList.remove('hidden');
+        document.getElementById('suggest-author-name')?.focus();
     }
 
     async loadSuggestImage(file) {
@@ -539,32 +728,65 @@ class App {
         const modal = document.getElementById('modal-suggest-post');
         if (!modal) return;
         modal.classList.remove('hidden');
-
-        const select = document.getElementById('suggest-author-select');
-        if (!select) return;
-        const authors = window.authorsManager.getAll();
-        select.innerHTML = '<option value="">— Выберите из известных авторов —</option>';
-        authors.forEach(a => {
-            const opt = document.createElement('option');
-            opt.value = a.id;
-            opt.textContent = `${a.name} (${a.handle || '@' + a.id})`;
-            select.appendChild(opt);
-        });
+        const searchInput = document.getElementById('suggest-post-author-search');
+        if (searchInput && !this.suggestSelectedAuthor) {
+            searchInput.focus();
+        }
     }
 
-    async renderPublicAuthorsCatalog(searchQuery = '') {
+    async renderPublicAuthorsCatalog(searchQuery = null) {
         const grid = document.getElementById('public-authors-grid');
         if (!grid) return;
 
-        const authors = window.authorsManager.search(searchQuery);
+        if (typeof searchQuery === 'string') {
+            this.publicAuthorsQuery = searchQuery;
+        }
+
+        const authors = window.authorsManager.search(this.publicAuthorsQuery || '');
+        const totalItems = authors.length;
+        const totalPages = Math.max(1, Math.ceil(totalItems / this.publicAuthorsPerPage));
+
+        if (this.publicAuthorsPage > totalPages) this.publicAuthorsPage = totalPages;
+        if (this.publicAuthorsPage < 1) this.publicAuthorsPage = 1;
+
+        const infoEl = document.getElementById('public-authors-page-info');
+        const pageNumEl = document.getElementById('public-authors-page-number');
+        const prevBtn = document.getElementById('btn-public-authors-prev');
+        const nextBtn = document.getElementById('btn-public-authors-next');
+        const paginationBar = document.getElementById('public-authors-pagination');
+
+        const startIdx = (this.publicAuthorsPage - 1) * this.publicAuthorsPerPage;
+        const endIdx = Math.min(totalItems, startIdx + this.publicAuthorsPerPage);
+        const pageAuthors = authors.slice(startIdx, endIdx);
+
+        if (infoEl) {
+            infoEl.textContent = totalItems === 0 ? '0 авторов' : `Показано ${startIdx + 1}–${endIdx} из ${totalItems} авторов`;
+        }
+        if (pageNumEl) {
+            pageNumEl.textContent = `${this.publicAuthorsPage} / ${totalPages}`;
+        }
+        if (prevBtn) {
+            prevBtn.disabled = this.publicAuthorsPage <= 1;
+        }
+        if (nextBtn) {
+            nextBtn.disabled = this.publicAuthorsPage >= totalPages;
+        }
+        if (paginationBar) {
+            if (totalItems === 0) {
+                paginationBar.classList.add('hidden');
+            } else {
+                paginationBar.classList.remove('hidden');
+            }
+        }
+
         grid.innerHTML = '';
 
-        if (authors.length === 0) {
-            grid.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">Авторы по запросу "${window.escapeHtml(searchQuery)}" не найдены.</div>`;
+        if (totalItems === 0) {
+            grid.innerHTML = `<div class="table-empty" style="grid-column: 1/-1;">Авторы по запросу "${window.escapeHtml(this.publicAuthorsQuery)}" не найдены.</div>`;
             return;
         }
 
-        authors.forEach(a => {
+        pageAuthors.forEach(a => {
             const card = document.createElement('div');
             card.className = 'author-card-public';
             const rawNick = (a.handle || a.id || '').trim();
