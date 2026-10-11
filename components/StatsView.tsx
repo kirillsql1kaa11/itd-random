@@ -66,20 +66,20 @@ export function StatsView() {
 
       <div className="summary-stats-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)', marginTop: 16 }}>
         <div className="summary-stat-box">
-          <div className="val">{stats.gamesPlayed}</div>
+          <div className="val" id="stat-display-games">{stats.gamesPlayed}</div>
           <div className="lbl">Игр сыграно</div>
         </div>
         <div className="summary-stat-box">
-          <div className="val">{stats.bestScore}</div>
-          <div className="lbl">Лучший счет</div>
+          <div className="val" id="stat-display-score">{stats.totalScore}</div>
+          <div className="lbl">Всего очков</div>
         </div>
         <div className="summary-stat-box">
-          <div className="val">{stats.maxStreak}</div>
-          <div className="lbl">Макс. серия</div>
+          <div className="val" id="stat-display-streak">{stats.maxStreak}</div>
+          <div className="lbl">Рекорд серии</div>
         </div>
         <div className="summary-stat-box">
-          <div className="val">{avgAccuracy}%</div>
-          <div className="lbl">Точность ответов</div>
+          <div className="val" id="stat-display-accuracy">{avgAccuracy}%</div>
+          <div className="lbl">Общая точность</div>
         </div>
       </div>
 

@@ -58,9 +58,13 @@ export function SuggestAuthorModal({ isOpen, onClose }: SuggestAuthorModalProps)
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          author_name: name.trim(),
-          post_text: `Новый автор: ${normalizedHandle} (${badge || 'Без бейджа'}). ${bio || ''}. Ссылка: ${profileUrl || ''}`,
-          screenshot: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+          type: 'author',
+          name: name.trim(),
+          handle: normalizedHandle,
+          badge: badge.trim(),
+          avatarColor: color,
+          profileUrl: profileUrl.trim(),
+          bio: bio.trim(),
           submitted_by: 'Заявка на автора',
         }),
       });

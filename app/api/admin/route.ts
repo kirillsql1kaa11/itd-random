@@ -237,6 +237,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(out.body, { status: out.status });
     }
 
+    if (action === 'get_admin_stats') {
+      const [lb, posts, authors, suggPosts, suggAuthors] = await Promise.all([
+        fetchSupabase<any[]>('leaderboard?select=nickname,score,accuracy').catch(() => []),
+        fetchSupabase<any[]>('posts?select=id').catch(() => []),
+        fetchSupabase<any[]>('authors?select=id').catch(() => []),
+        fetchSupabase<any[]>('suggestions_posts?select=id,status').catch(() => []),
+        fetchSupabase<any[]>('suggestions_authors?select=id,status').catch(() => [])
+      ]);
+
+      const leaderboardRows = Array.isArray(lb) ? lb : [];
+      let highest = 0;
+      let leader = '—';
+      const uniqueNicks = new Set<string>();
+
+      leaderboardRows.forEach((r) => {
+        const nick = (r.nickname || '').trim();
+        if (nick) uniqueNicks.add(nick);
+        const s = Number(r.score) || 0;
+        if (s > highest) {
+          highest = s;
+          leader = nick;
+        }
+      });
+
+      const pendingPostsCount = Array.isArray(suggPosts) ? suggPosts.filter((p) => !p.status || p.status === 'pending').length : 0;
+      const pendingAuthorsCount = Array.isArray(suggAuthors) ? suggAuthors.filter((a) => !a.status || a.status === 'pending').length : 0;
+
+      return NextResponse.json({
+        ok: true,
+        stats: {
+          totalGames: leaderboardRows.length,
+          uniquePlayers: uniqueNicks.size,
+          topScore: highest,
+          topPlayer: leader,
+          totalPosts: Array.isArray(posts) ? posts.length : 0,
+          totalAuthors: Array.isArray(authors) ? authors.length : 0,
+          pendingPosts: pendingPostsCount,
+          pendingAuthors: pendingAuthorsCount
+        }
+      });
+    }
+
     if (action === 'get_posts') {
       const posts = await fetchSupabase<any[]>('posts?select=*&order=id.desc');
       return NextResponse.json({ ok: true, posts: posts || [] });
@@ -248,8 +290,92 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'get_suggestions') {
-      const suggestions = await fetchSupabase<any[]>('suggestions_posts?select=*&order=id.desc');
-      return NextResponse.json({ ok: true, suggestions: suggestions || [] });
+      const [suggestions, authorSuggestions] = await Promise.all([
+        fetchSupabase<any[]>('suggestions_posts?select=*&order=id.desc').catch(() => []),
+        fetchSupabase<any[]>('suggestions_authors?select=*&order=id.desc').catch(() => [])
+      ]);
+
+      const pendingPosts = (Array.isArray(suggestions) ? suggestions : []).filter((s) => !s.status || s.status === 'pending');
+      const pendingAuthors = (Array.isArray(authorSuggestions) ? authorSuggestions : []).filter((s) => !s.status || s.status === 'pending');
+
+      return NextResponse.json({
+        ok: true,
+        suggestions: pendingPosts,
+        authorSuggestions: pendingAuthors
+      });
+    }
+
+    if (action === 'get_author_suggestions') {
+      const authorSuggestions = await fetchSupabase<any[]>('suggestions_authors?select=*&order=id.desc').catch(() => []);
+      const pendingAuthors = (Array.isArray(authorSuggestions) ? authorSuggestions : []).filter((s) => !s.status || s.status === 'pending');
+      return NextResponse.json({ ok: true, authors: pendingAuthors });
+    }
+
+    if (action === 'export_backup') {
+      const [posts, authors] = await Promise.all([
+        fetchSupabase<any[]>('posts?select=*&order=id.desc').catch(() => []),
+        fetchSupabase<any[]>('authors?select=*&order=name.asc').catch(() => [])
+      ]);
+      return NextResponse.json({
+        ok: true,
+        backup: {
+          app: 'ITD_Author_Guesser',
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          posts: posts || [],
+          authors: authors || []
+        }
+      });
+    }
+
+    if (action === 'import_backup') {
+      const { backup } = body;
+      if (!backup || (!Array.isArray(backup.posts) && !Array.isArray(backup.authors))) {
+        return NextResponse.json({ error: 'Некорректный файл бэкапа' }, { status: 400 });
+      }
+
+      if (Array.isArray(backup.authors) && backup.authors.length > 0) {
+        for (const author of backup.authors) {
+          await fetchSupabase('authors', {
+            method: 'POST',
+            prefer: 'resolution=merge-duplicates',
+            body: {
+              id: author.id,
+              name: author.name,
+              handle: author.handle,
+              avatar_color: author.avatar_color || author.avatarColor,
+              avatar_text: author.avatar_text || author.avatarText,
+              badge: author.badge,
+              bio: author.bio,
+              verified: Boolean(author.verified)
+            }
+          }).catch(() => {});
+        }
+      }
+
+      if (Array.isArray(backup.posts) && backup.posts.length > 0) {
+        for (const p of backup.posts) {
+          await fetchSupabase('posts', {
+            method: 'POST',
+            prefer: 'resolution=merge-duplicates',
+            body: {
+              id: p.id,
+              correct_author_id: p.correct_author_id || p.correctAuthorId,
+              post_text: p.post_text || p.postText || '',
+              screenshot: p.screenshot,
+              hint: p.hint || '',
+              difficulty: p.difficulty || 'normal',
+              tags: p.tags || ['#итд']
+            }
+          }).catch(() => {});
+        }
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'reset_presets') {
+      return NextResponse.json({ ok: true });
     }
 
     if (action === 'save_post') {
@@ -373,6 +499,44 @@ export async function POST(req: NextRequest) {
         });
       } catch {
         await fetchSupabase(`suggestions_posts?id=eq.${encodeURIComponent(id)}`, {
+          method: 'DELETE'
+        });
+      }
+
+      return NextResponse.json({ ok: true });
+    }
+
+    if (action === 'moderate_author') {
+      const { id, status, authorRecord } = body;
+      if (!id) return NextResponse.json({ error: 'Suggestion ID required' }, { status: 400 });
+
+      if (status === 'approved' && authorRecord) {
+        const idVal = authorRecord.id || ('author_' + Date.now());
+        const record = {
+          id: idVal,
+          name: authorRecord.name,
+          handle: authorRecord.handle,
+          avatar_color: authorRecord.avatarColor || authorRecord.avatar_color || 'linear-gradient(135deg, #0288d1, #26c6da)',
+          avatar_text: authorRecord.avatarText || authorRecord.avatar_text || (authorRecord.name ? authorRecord.name[0] : '?'),
+          badge: authorRecord.badge || 'Автор ИТД',
+          bio: authorRecord.bio || 'Популярный автор в ИТД',
+          verified: authorRecord.verified !== undefined ? Boolean(authorRecord.verified) : true
+        };
+
+        await fetchSupabase('authors', {
+          method: 'POST',
+          prefer: 'resolution=merge-duplicates',
+          body: record
+        });
+      }
+
+      try {
+        await fetchSupabase(`suggestions_authors?id=eq.${encodeURIComponent(id)}`, {
+          method: 'PATCH',
+          body: { status }
+        });
+      } catch {
+        await fetchSupabase(`suggestions_authors?id=eq.${encodeURIComponent(id)}`, {
           method: 'DELETE'
         });
       }

@@ -142,6 +142,62 @@ export default function App() {
     }
   };
 
+  const startTestQuiz = (post: any) => {
+    setActiveTab('quiz');
+    const testQ: QuizQuestion = {
+      id: post.id,
+      qToken: `test_${post.id}`,
+      screenshot: post.screenshot,
+      postText: post.post_text || '',
+      hint: post.hint || '',
+      difficulty: post.difficulty || 'normal',
+      tags: post.tags || [],
+      options: [],
+    };
+    fetch('/api/authors')
+      .then((res) => res.json())
+      .then((d) => {
+        const pool = d.authors || [];
+        const correct = pool.find((a: any) => a.id === post.correct_author_id) || {
+          id: post.correct_author_id,
+          name: post.correct_author_id,
+          handle: `@${post.correct_author_id}`,
+          avatarColor: 'linear-gradient(135deg, #0288d1, #26c6da)',
+          avatarText: '?',
+          verified: true,
+        };
+        const others = pool.filter((a: any) => a.id !== correct.id).sort(() => Math.random() - 0.5).slice(0, 3);
+        const options = [correct, ...others].sort(() => Math.random() - 0.5).map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          handle: a.handle,
+          avatarColor: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)',
+          avatarText: a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?'),
+          verified: Boolean(a.verified),
+        }));
+        testQ.options = options;
+        setQuestions([testQ]);
+        setCurrentIdx(0);
+        setScore(0);
+        setStreak(0);
+        setMaxStreak(0);
+        setLives(3);
+        setTimeLeft(15);
+        setMaxTime(15);
+        setIsAnswered(false);
+        setSelectedAuthorId(null);
+        setCorrectAuthorId(null);
+        setEliminatedIds([]);
+        setHintUsed(false);
+        setHints5050Left(1);
+        setTextHintsLeft(3);
+        setShowTextHint(false);
+        setCorrectCount(0);
+        setSessionToken(null);
+      })
+      .catch(() => {});
+  };
+
   const handleNextQuestion = useCallback((nextIdx: number, currentLives: number, currentScore: number, currentMaxStreak: number, currentCorrect: number) => {
     if (selectedMode === 'survival' && currentLives <= 0) {
       finishGame(currentScore, currentMaxStreak, currentCorrect, nextIdx);
@@ -375,7 +431,10 @@ export default function App() {
         {activeTab === 'stats' && <StatsView />}
 
         {activeTab === 'admin' && (
-          <AdminView onGoHome={() => setActiveTab('home')} />
+          <AdminView
+            onGoHome={() => setActiveTab('home')}
+            onTestQuestion={startTestQuiz}
+          />
         )}
       </main>
 

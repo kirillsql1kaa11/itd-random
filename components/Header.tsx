@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Volume2, VolumeX, HelpCircle, Trophy, Users, BarChart3, Home } from 'lucide-react';
 import { soundFx } from '@/lib/sound';
 
@@ -11,7 +11,13 @@ interface HeaderProps {
 }
 
 export function Header({ activeTab, onTabChange, onOpenRules }: HeaderProps) {
-  const [isMuted, setIsMuted] = useState(() => soundFx.isMuted());
+  const [isMuted, setIsMuted] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setIsMuted(soundFx.isMuted());
+  }, []);
 
   const handleToggleSound = () => {
     const nextMuted = soundFx.toggleMute();
@@ -75,9 +81,9 @@ export function Header({ activeTab, onTabChange, onOpenRules }: HeaderProps) {
             type="button"
             className="icon-btn"
             onClick={handleToggleSound}
-            title={isMuted ? 'Включить звук' : 'Выключить звук'}
+            title={mounted && isMuted ? 'Включить звук' : 'Выключить звук'}
           >
-            {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} style={{ color: 'var(--accent-blue)' }} />}
+            {mounted && isMuted ? <VolumeX size={16} /> : <Volume2 size={16} style={{ color: 'var(--accent-blue)' }} />}
           </button>
         </div>
       </div>

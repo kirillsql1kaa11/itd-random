@@ -6,22 +6,47 @@ import { soundFx } from '@/lib/sound';
 
 interface AdminViewProps {
   onGoHome: () => void;
+  onTestQuestion?: (post: any) => void;
 }
 
-export function AdminView({ onGoHome }: AdminViewProps) {
+interface AdminStats {
+  totalGames: number;
+  uniquePlayers: number;
+  topScore: number;
+  topPlayer: string;
+  totalPosts: number;
+  totalAuthors: number;
+  pendingPosts: number;
+  pendingAuthors: number;
+}
+
+export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
   const [token, setToken] = useState<string | null>(null);
   const [pinPassword, setPinPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const [stats, setStats] = useState<AdminStats>({
+    totalGames: 0,
+    uniquePlayers: 0,
+    topScore: 0,
+    topPlayer: '—',
+    totalPosts: 0,
+    totalAuthors: 0,
+    pendingPosts: 0,
+    pendingAuthors: 0,
+  });
+
   const [posts, setPosts] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Author[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [authorSuggestions, setAuthorSuggestions] = useState<any[]>([]);
 
   const [itdUrl, setItdUrl] = useState('');
   const [itdToken, setItdToken] = useState('');
   const [itdLoading, setItdLoading] = useState(false);
 
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [screenshotData, setScreenshotData] = useState<string | null>(null);
   const [censorTool, setCensorTool] = useState<'blackout' | 'blur'>('blackout');
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -40,7 +65,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
 
   const [postsSearch, setPostsSearch] = useState('');
   const [postsPage, setPostsPage] = useState(1);
-  const postsPerPage = 10;
+  const postsPerPage = 15;
 
   const [authorsSearch, setAuthorsSearch] = useState('');
   const [authorsPage, setAuthorsPage] = useState(1);
@@ -49,13 +74,22 @@ export function AdminView({ onGoHome }: AdminViewProps) {
   const [newPassword, setNewPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
 
-  const [showNewAuthorModal, setShowNewAuthorModal] = useState(false);
-  const [newAuthorName, setNewAuthorName] = useState('');
-  const [newAuthorHandle, setNewAuthorHandle] = useState('');
-  const [newAuthorBadge, setNewAuthorBadge] = useState('');
-  const [newAuthorColor, setNewAuthorColor] = useState('linear-gradient(135deg, #0288d1, #26c6da)');
-  const [newAuthorBio, setNewAuthorBio] = useState('');
-  const [newAuthorVerified, setNewAuthorVerified] = useState(true);
+  const [showAuthorModal, setShowAuthorModal] = useState(false);
+  const [editingAuthorId, setEditingAuthorId] = useState<string | null>(null);
+  const [modalAuthorName, setModalAuthorName] = useState('');
+  const [modalAuthorHandle, setModalAuthorHandle] = useState('');
+  const [modalAuthorBadge, setModalAuthorBadge] = useState('');
+  const [modalAuthorColor, setModalAuthorColor] = useState('linear-gradient(135deg, #0288d1, #26c6da)');
+  const [modalAuthorBio, setModalAuthorBio] = useState('');
+  const [modalAuthorVerified, setModalAuthorVerified] = useState(true);
+
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 2500);
+  };
 
   useEffect(() => {
     const savedToken = sessionStorage.getItem('itd_admin_token');
@@ -69,7 +103,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
 
   const loadAdminData = async (authToken: string) => {
     try {
-      const [resPosts, resAuthors, resSug] = await Promise.all([
+      const [resPosts, resAuthors, resSug, resStats] = await Promise.all([
         fetch('/api/admin?action=get_posts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
@@ -82,17 +116,28 @@ export function AdminView({ onGoHome }: AdminViewProps) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
         }),
+        fetch('/api/admin?action=get_admin_stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken}` },
+        }),
       ]);
 
-      const [dataPosts, dataAuthors, dataSug] = await Promise.all([
+      const [dataPosts, dataAuthors, dataSug, dataStats] = await Promise.all([
         resPosts.json(),
         resAuthors.json(),
         resSug.json(),
+        resStats.json(),
       ]);
 
       if (dataPosts.ok) setPosts(dataPosts.posts || []);
       if (dataAuthors.ok) setAuthors(dataAuthors.authors || []);
-      if (dataSug.ok) setSuggestions(dataSug.suggestions || []);
+      if (dataSug.ok) {
+        setSuggestions(dataSug.suggestions || []);
+        setAuthorSuggestions(dataSug.authorSuggestions || []);
+      }
+      if (dataStats.ok && dataStats.stats) {
+        setStats(dataStats.stats);
+      }
     } catch {}
   };
 
@@ -165,7 +210,6 @@ export function AdminView({ onGoHome }: AdminViewProps) {
 
   const initCanvasWithImage = (dataUrl: string) => {
     setScreenshotData(dataUrl);
-    setCanvasHistory([]);
     const img = new Image();
     img.onload = () => {
       const canvas = canvasRef.current;
@@ -173,9 +217,10 @@ export function AdminView({ onGoHome }: AdminViewProps) {
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      ctx.drawImage(img, 0, 0);
-      setCanvasHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)]);
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setCanvasHistory([ctx.getImageData(0, 0, img.width, img.height)]);
+      }
     };
     img.src = dataUrl;
   };
@@ -186,10 +231,11 @@ export function AdminView({ onGoHome }: AdminViewProps) {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    const x = (e.clientX - rect.left) * scaleX;
-    const y = (e.clientY - rect.top) * scaleY;
     setIsDrawing(true);
-    setStartPos({ x, y });
+    setStartPos({
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    });
   };
 
   const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -279,6 +325,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
           };
           setSelectedAuthor(autoAuthor);
         }
+        showToast('Пост загружен из ИТД');
       } else {
         alert(data.error || 'Не удалось импортировать пост');
       }
@@ -308,11 +355,11 @@ export function AdminView({ onGoHome }: AdminViewProps) {
 
     const tagList = postTags
       .split(',')
-      .map((t) => t.trim())
-      .filter(Boolean);
+      .map((t) => (t.trim().startsWith('#') ? t.trim() : '#' + t.trim()))
+      .filter((t) => t.length > 1);
 
     const postPayload = {
-      id: `post_${Date.now()}`,
+      id: editingPostId || `post_${Date.now()}`,
       correctAuthorId: selectedAuthor.id,
       postText: postText.trim(),
       screenshot: finalScreenshot,
@@ -328,13 +375,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
         body: JSON.stringify({ post: postPayload }),
       });
       if (res.ok) {
-        alert('Пост успешно добавлен в базу викторины!');
-        setScreenshotData(null);
-        setSelectedAuthor(null);
-        setPostText('');
-        setPostHint('');
-        setPostTags('');
-        setItdUrl('');
+        showToast(editingPostId ? 'Пост успешно обновлен' : 'Вопрос добавлен в викторину');
+        soundFx.playCorrect();
+        resetPostForm();
         loadAdminData(token!);
       } else {
         const d = await res.json().catch(() => ({}));
@@ -347,8 +390,42 @@ export function AdminView({ onGoHome }: AdminViewProps) {
     }
   };
 
+  const resetPostForm = () => {
+    setEditingPostId(null);
+    setScreenshotData(null);
+    setCanvasHistory([]);
+    setSelectedAuthor(null);
+    setAuthorSearch('');
+    setPostText('');
+    setPostHint('');
+    setPostTags('');
+    setPostDiff('normal');
+    setItdUrl('');
+  };
+
+  const handleEditPost = (post: any) => {
+    setEditingPostId(post.id);
+    setPostText(post.post_text || '');
+    setPostHint(post.hint || '');
+    setPostTags((post.tags || []).join(', '));
+    setPostDiff(post.difficulty || 'normal');
+
+    const author = authors.find((a) => a.id === post.correct_author_id);
+    if (author) {
+      setSelectedAuthor(author);
+    }
+
+    if (post.screenshot) {
+      initCanvasWithImage(post.screenshot);
+    }
+
+    const formEl = document.getElementById('admin-post-form');
+    if (formEl) formEl.scrollIntoView({ behavior: 'smooth' });
+    showToast('Редактирование вопроса');
+  };
+
   const handleDeletePost = async (id: string) => {
-    if (!window.confirm('Удалить этот вопрос?')) return;
+    if (!window.confirm('Точно удалить этот вопрос из викторины?')) return;
     soundFx.playClick();
     try {
       const res = await fetch('/api/admin?action=delete_post', {
@@ -358,39 +435,212 @@ export function AdminView({ onGoHome }: AdminViewProps) {
       });
       if (res.ok) {
         setPosts((prev) => prev.filter((p) => p.id !== id));
+        showToast('Вопрос удален');
+        loadAdminData(token!);
       }
     } catch {}
   };
 
-  const handleModerateSuggestion = async (id: string, status: 'approved' | 'rejected', postRecord?: any) => {
+  const handleApprovePostSuggestion = async (suggestion: any, chosenAuthorId: string, hint: string) => {
+    soundFx.playClick();
+    let authorId = chosenAuthorId;
+    if (!authorId) {
+      const fallback = authors[0];
+      authorId = fallback ? fallback.id : 'unknown';
+    }
+
+    const postRecord = {
+      id: `post_${Date.now()}`,
+      correctAuthorId: authorId,
+      postText: suggestion.post_text || '',
+      screenshot: suggestion.screenshot,
+      hint: hint || (suggestion.post_url ? `Оригинал: ${suggestion.post_url}` : ''),
+      difficulty: 'normal',
+      tags: ['#итд'],
+    };
+
+    try {
+      const res = await fetch('/api/admin?action=moderate_post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: suggestion.id, status: 'approved', postRecord }),
+      });
+      if (res.ok) {
+        setSuggestions((prev) => prev.filter((s) => s.id !== suggestion.id));
+        showToast('Пост одобрен и добавлен в викторину');
+        loadAdminData(token!);
+      }
+    } catch {}
+  };
+
+  const handleRejectPostSuggestion = async (id: string) => {
     soundFx.playClick();
     try {
       const res = await fetch('/api/admin?action=moderate_post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ id, status, postRecord }),
+        body: JSON.stringify({ id, status: 'rejected' }),
       });
       if (res.ok) {
         setSuggestions((prev) => prev.filter((s) => s.id !== id));
-        if (status === 'approved') loadAdminData(token!);
+        showToast('Пост отклонен');
+        loadAdminData(token!);
       }
     } catch {}
   };
 
+  const handleApproveAuthorSuggestion = async (
+    as: any,
+    avatarColor: string,
+    badge: string,
+    bio: string
+  ) => {
+    soundFx.playClick();
+    const handleClean = as.handle ? (as.handle.startsWith('@') ? as.handle : `@${as.handle}`) : `@${as.name.toLowerCase().replace(/[^a-z0-9_]/gi, '')}`;
+    const authorRecord = {
+      id: handleClean.replace('@', '').toLowerCase() || `author_${Date.now()}`,
+      name: as.name,
+      handle: handleClean,
+      avatarColor: avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)',
+      avatarText: as.name ? as.name[0].toUpperCase() : '?',
+      badge: badge || 'Автор ИТД',
+      bio: bio || 'Популярный автор в ИТД',
+      verified: true,
+    };
+
+    try {
+      const res = await fetch('/api/admin?action=moderate_author', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id: as.id, status: 'approved', authorRecord }),
+      });
+      if (res.ok) {
+        setAuthorSuggestions((prev) => prev.filter((item) => item.id !== as.id));
+        showToast(`Автор ${as.name} одобрен и добавлен в пул`);
+        loadAdminData(token!);
+      }
+    } catch {}
+  };
+
+  const handleRejectAuthorSuggestion = async (id: string) => {
+    soundFx.playClick();
+    try {
+      const res = await fetch('/api/admin?action=moderate_author', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, status: 'rejected' }),
+      });
+      if (res.ok) {
+        setAuthorSuggestions((prev) => prev.filter((item) => item.id !== id));
+        showToast('Заявка на автора отклонена');
+        loadAdminData(token!);
+      }
+    } catch {}
+  };
+
+  const handleExportBackup = async () => {
+    soundFx.playClick();
+    try {
+      const res = await fetch('/api/admin?action=export_backup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.backup) {
+        const json = JSON.stringify(data.backup, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `itd_quiz_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast('Резервная копия сохранена на устройство');
+      }
+    } catch {
+      alert('Ошибка при выгрузке бэкапа');
+    }
+  };
+
+  const handleImportBackup = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const text = e.target?.result as string;
+        const backupData = JSON.parse(text);
+        const res = await fetch('/api/admin?action=import_backup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ backup: backupData }),
+        });
+        if (res.ok) {
+          showToast('База данных успешно импортирована');
+          loadAdminData(token!);
+        } else {
+          alert('Ошибка при импорте бэкапа');
+        }
+      } catch (err: any) {
+        alert('Некорректный файл бэкапа: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleResetPresets = async () => {
+    if (!window.confirm('Восстановить стартовый набор вопросов викторины?')) return;
+    soundFx.playClick();
+    try {
+      const res = await fetch('/api/admin?action=reset_presets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        showToast('Стартовый пак обновлен');
+        loadAdminData(token!);
+      }
+    } catch {}
+  };
+
+  const openCreateAuthorModal = () => {
+    setEditingAuthorId(null);
+    setModalAuthorName('');
+    setModalAuthorHandle('');
+    setModalAuthorBadge('');
+    setModalAuthorColor('linear-gradient(135deg, #0288d1, #26c6da)');
+    setModalAuthorBio('');
+    setModalAuthorVerified(true);
+    setShowAuthorModal(true);
+  };
+
+  const openEditAuthorModal = (author: Author) => {
+    setEditingAuthorId(author.id);
+    setModalAuthorName(author.name || '');
+    setModalAuthorHandle(author.handle || '');
+    setModalAuthorBadge(author.badge || '');
+    setModalAuthorColor(author.avatar_color || author.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)');
+    setModalAuthorBio(author.bio || '');
+    setModalAuthorVerified(author.verified !== undefined ? Boolean(author.verified) : true);
+    setShowAuthorModal(true);
+  };
+
   const handleSaveAuthorModal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAuthorName.trim()) return;
+    if (!modalAuthorName.trim()) return;
     soundFx.playClick();
 
+    const cleanHandle = modalAuthorHandle.trim().startsWith('@')
+      ? modalAuthorHandle.trim()
+      : `@${modalAuthorHandle.trim()}`;
+
     const authorPayload: Author = {
-      id: newAuthorHandle.replace('@', '').toLowerCase() || `author_${Date.now()}`,
-      name: newAuthorName.trim(),
-      handle: newAuthorHandle.startsWith('@') ? newAuthorHandle : `@${newAuthorHandle}`,
-      badge: newAuthorBadge.trim() || null,
-      avatarColor: newAuthorColor,
-      avatarText: newAuthorName.trim()[0] || '?',
-      bio: newAuthorBio.trim() || null,
-      verified: newAuthorVerified,
+      id: editingAuthorId || cleanHandle.replace('@', '').toLowerCase() || `author_${Date.now()}`,
+      name: modalAuthorName.trim(),
+      handle: cleanHandle,
+      badge: modalAuthorBadge.trim() || null,
+      avatarColor: modalAuthorColor,
+      avatarText: modalAuthorName.trim()[0] || '?',
+      bio: modalAuthorBio.trim() || null,
+      verified: modalAuthorVerified,
     };
 
     try {
@@ -400,18 +650,15 @@ export function AdminView({ onGoHome }: AdminViewProps) {
         body: JSON.stringify({ author: authorPayload }),
       });
       if (res.ok) {
-        setShowNewAuthorModal(false);
-        setNewAuthorName('');
-        setNewAuthorHandle('');
-        setNewAuthorBadge('');
-        setNewAuthorBio('');
+        setShowAuthorModal(false);
+        showToast(editingAuthorId ? `Автор ${modalAuthorName} обновлен` : `Автор ${modalAuthorName} добавлен`);
         loadAdminData(token!);
       }
     } catch {}
   };
 
-  const handleDeleteAuthor = async (id: string) => {
-    if (!window.confirm('Удалить автора?')) return;
+  const handleDeleteAuthor = async (id: string, name: string) => {
+    if (!window.confirm(`Удалить автора "${name}" из базы?`)) return;
     soundFx.playClick();
     try {
       const res = await fetch('/api/admin?action=delete_author', {
@@ -421,6 +668,8 @@ export function AdminView({ onGoHome }: AdminViewProps) {
       });
       if (res.ok) {
         setAuthors((prev) => prev.filter((a) => a.id !== id));
+        showToast('Автор удален');
+        loadAdminData(token!);
       }
     } catch {}
   };
@@ -445,6 +694,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
           sessionStorage.setItem('itd_admin_token', data.token);
         }
         setNewPassword('');
+        showToast('Пароль администратора обновлен');
       } else {
         setPasswordMsg(data.error || 'Ошибка при смене пароля');
       }
@@ -514,7 +764,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
     const q = authorsSearch.toLowerCase();
     return (
       (a.name || '').toLowerCase().includes(q) ||
-      (a.handle || '').toLowerCase().includes(q)
+      (a.handle || '').toLowerCase().includes(q) ||
+      (a.bio || '').toLowerCase().includes(q) ||
+      (a.badge || '').toLowerCase().includes(q)
     );
   });
 
@@ -528,21 +780,291 @@ export function AdminView({ onGoHome }: AdminViewProps) {
     <section className="app-view">
       <div className="admin-header-row">
         <div>
-          <h1 className="admin-page-title">Панель управления викториной</h1>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ИТД · Кто автор?</span>
+          <h1 className="admin-page-title">Панель управления</h1>
+          <span id="admin-db-status" className="admin-badge-count">
+            Supabase активен
+          </span>
         </div>
         <div className="admin-header-actions">
-          <span className="admin-badge-count">{posts.length} вопросов</span>
-          <span className="admin-badge-count">{authors.length} авторов</span>
+          <button
+            type="button"
+            className="btn-primary-action"
+            id="btn-admin-go-home"
+            onClick={onGoHome}
+            style={{ fontSize: 12, padding: '6px 14px' }}
+          >
+            ← На главную
+          </button>
+          <button
+            type="button"
+            className="btn-secondary-action"
+            id="btn-admin-refresh-stats"
+            onClick={() => {
+              loadAdminData(token);
+              showToast('Статистика обновлена');
+            }}
+            style={{ fontSize: 12, padding: '6px 14px' }}
+          >
+            Обновить статистику
+          </button>
+          <button
+            type="button"
+            className="btn-danger-outline"
+            id="btn-admin-logout"
+            onClick={handleLogout}
+          >
+            Выйти
+          </button>
+        </div>
+      </div>
+
+      <div className="admin-stats-dashboard">
+        <div className="admin-stat-metric-card">
+          <div className="asm-header">
+            <span>Игр сыграно</span>
+            <span className="asm-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><line x1="15" y1="13" x2="15.01" y2="13"></line><line x1="18" y1="11" x2="18.01" y2="11"></line><rect x="2" y="6" width="20" height="12" rx="2"></rect></svg>
+            </span>
+          </div>
+          <div className="asm-value" id="admin-stat-total-games">{stats.totalGames}</div>
+          <div className="asm-hint">Всего матчей в базе</div>
+        </div>
+        <div className="admin-stat-metric-card">
+          <div className="asm-header">
+            <span>Игроков</span>
+            <span className="asm-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+            </span>
+          </div>
+          <div className="asm-value" id="admin-stat-unique-players">{stats.uniquePlayers}</div>
+          <div className="asm-hint">Уникальных ников</div>
+        </div>
+        <div className="admin-stat-metric-card">
+          <div className="asm-header">
+            <span>Рекорд очков</span>
+            <span className="asm-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path><path d="M4 22h16"></path><path d="M10 14.66V17c0 .55-.45 1-1 1H8c-.55 0-1 .45-1 1v1c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1c0-.55-.45-1-1-1h-1c-.55 0-1-.45-1-1v-2.34"></path><path d="M18 4H6v7a6 6 0 0 0 12 0V4z"></path></svg>
+            </span>
+          </div>
+          <div className="asm-value" id="admin-stat-top-score">{stats.topScore}</div>
+          <div className="asm-hint" id="admin-stat-top-player">{stats.topPlayer !== '—' ? `Лидер: ${stats.topPlayer}` : '—'}</div>
+        </div>
+        <div className="admin-stat-metric-card">
+          <div className="asm-header">
+            <span>Постов в игре</span>
+            <span className="asm-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+            </span>
+          </div>
+          <div className="asm-value" id="admin-stat-active-posts">{stats.totalPosts || posts.length}</div>
+          <div className="asm-hint" id="admin-total-posts-badge">{stats.totalPosts || posts.length} постов</div>
+        </div>
+        <div className="admin-stat-metric-card">
+          <div className="asm-header">
+            <span>Авторов в пуле</span>
+            <span className="asm-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </span>
+          </div>
+          <div className="asm-value" id="admin-stat-active-authors">{stats.totalAuthors || authors.length}</div>
+          <div className="asm-hint">Доступно для викторины</div>
+        </div>
+        <div className="admin-stat-metric-card">
+          <div className="asm-header">
+            <span>На модерации</span>
+            <span className="asm-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            </span>
+          </div>
+          <div className="asm-value" id="admin-stat-pending-total">{suggestions.length + authorSuggestions.length}</div>
+          <div className="asm-hint" id="admin-stat-pending-detail">{suggestions.length} постов, {authorSuggestions.length} авторов</div>
         </div>
       </div>
 
       <div className="admin-card">
         <div className="admin-card-title">
-          <span>Создать новый вопрос викторины</span>
+          <span>Модерация предложенных постов</span>
+          <span className="admin-badge-count" id="admin-pending-sugg-count">{suggestions.length} предложений</span>
         </div>
+        <div id="admin-pending-suggestions-list" className="admin-suggestions-container">
+          {suggestions.length === 0 ? (
+            <div className="table-empty">Нет постов, ожидающих модерации</div>
+          ) : (
+            suggestions.map((s) => {
+              const author = s.author_id ? authors.find((a) => a.id === s.author_id) : null;
+              const authorDisplayName = author ? `${author.name} (${author.handle})` : (s.author_name || 'Не указан');
 
-        <div className="form-group" style={{ marginBottom: 14 }}>
+              let postUrl = s.itd_url || s.post_url;
+              let postTextClean = s.post_text || '';
+              const urlMatch = postTextClean.match(/(?:🔗|\[URL:)\s*(https?:\/\/[^\s\]]+)/);
+              if (urlMatch) {
+                postUrl = postUrl || urlMatch[1];
+                postTextClean = postTextClean.replace(/(?:🔗|\[URL:)\s*https?:\/\/[^\s\]]+\]?/, '').trim();
+              }
+              const hintMatch = postTextClean.match(/\[HINT:\s*([^\]]+)\]/);
+              let postHintClean = '';
+              if (hintMatch) {
+                postHintClean = hintMatch[1].trim();
+                postTextClean = postTextClean.replace(/\[HINT:\s*[^\]]+\]/, '').trim();
+              }
+
+              return (
+                <div key={s.id} className="admin-suggestion-card">
+                  <img
+                    src={s.screenshot}
+                    alt="Предложенный скриншот"
+                    className="asc-thumb"
+                    onClick={() => setLightboxImage(s.screenshot)}
+                  />
+                  <div className="asc-info">
+                    <div className="asc-author-line">
+                      Автор: <strong>{authorDisplayName}</strong>
+                    </div>
+                    <div className="asc-meta-line">
+                      Предложил: <strong>{s.submitted_by || 'Аноним'}</strong>
+                    </div>
+                    {postUrl && (
+                      <div className="asc-link-row">
+                        <a
+                          href={postUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="asc-external-link"
+                        >
+                          <span>Ссылка на пост в ИТД</span> ↗
+                        </a>
+                      </div>
+                    )}
+                    {postTextClean && <p className="asc-comment">{postTextClean}</p>}
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                        Автор для викторины:
+                      </label>
+                      <select
+                        className="asc-author-select"
+                        defaultValue={s.author_id || ''}
+                        id={`asc-select-${s.id}`}
+                      >
+                        <option value="">— Привязать к автору —</option>
+                        {authors.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} ({a.handle})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="asc-actions">
+                      <button
+                        type="button"
+                        className="btn-approve"
+                        onClick={() => {
+                          const selectEl = document.getElementById(`asc-select-${s.id}`) as HTMLSelectElement | null;
+                          const chosenAuthorId = selectEl?.value || s.author_id || authors[0]?.id;
+                          handleApprovePostSuggestion(s, chosenAuthorId, postHintClean);
+                        }}
+                      >
+                        ✓ Одобрить в викторину
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-reject"
+                        onClick={() => handleRejectPostSuggestion(s.id)}
+                      >
+                        ✕ Отклонить
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="admin-card">
+        <div className="admin-card-title">
+          <span>Модерация предложенных авторов</span>
+          <span className="admin-badge-count" id="admin-pending-authors-count">{authorSuggestions.length} предложений</span>
+        </div>
+        <div id="admin-pending-authors-list" className="admin-suggestions-container">
+          {authorSuggestions.length === 0 ? (
+            <div className="table-empty">Нет авторов, ожидающих модерации</div>
+          ) : (
+            authorSuggestions.map((as) => {
+              const firstChar = (as.name && as.name.length > 0 ? as.name[0] : '?').toUpperCase();
+              let bioClean = as.bio || '';
+              let badgeClean = as.badge || '';
+              let avatarColorClean = as.avatar_color || as.avatarColor || 'linear-gradient(135deg, #7c3aed, #ec4899)';
+
+              const colorMatch = bioClean.match(/\[COLOR:\s*([^\]]+)\]/);
+              if (colorMatch) {
+                avatarColorClean = colorMatch[1].trim();
+                bioClean = bioClean.replace(/\[COLOR:\s*[^\]]+\]/, '').trim();
+              }
+              const badgeMatch = bioClean.match(/\[BADGE:\s*([^\]]+)\]/);
+              if (badgeMatch) {
+                badgeClean = badgeMatch[1].trim();
+                bioClean = bioClean.replace(/\[BADGE:\s*[^\]]+\]/, '').trim();
+              }
+              const profileMatch = bioClean.match(/\[PROFILE:\s*([^\]]+)\]/);
+              let profileClean = '';
+              if (profileMatch) {
+                profileClean = profileMatch[1].trim();
+                bioClean = bioClean.replace(/\[PROFILE:\s*[^\]]+\]/, '').trim();
+              }
+
+              return (
+                <div key={as.id} className="admin-author-suggestion-card">
+                  <div className="aasc-avatar" style={{ background: avatarColorClean }}>
+                    {firstChar}
+                  </div>
+                  <div className="aasc-info">
+                    <div className="aasc-header-row">
+                      <strong className="aasc-name">{as.name}</strong>
+                      <span className="aasc-handle">{as.handle || `@${as.name}`}</span>
+                      {badgeClean && (
+                        <span className="author-badge-pill" style={{ marginLeft: 6, fontSize: 10 }}>
+                          {badgeClean}
+                        </span>
+                      )}
+                    </div>
+                    <div className="aasc-meta">
+                      Предложил: <strong>{as.submitted_by || 'Аноним'}</strong>
+                      {profileClean && (
+                        <> · <a href={profileClean} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-blue)', textDecoration: 'underline' }}>Профиль в ИТД ↗</a></>
+                      )}
+                    </div>
+                    {bioClean && <div className="aasc-bio">{bioClean}</div>}
+                    <div className="aasc-actions">
+                      <button
+                        type="button"
+                        className="btn-approve aasc-btn-approve"
+                        onClick={() => handleApproveAuthorSuggestion(as, avatarColorClean, badgeClean, bioClean)}
+                      >
+                        ✓ Одобрить автора
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-reject aasc-btn-reject"
+                        onClick={() => handleRejectAuthorSuggestion(as.id)}
+                      >
+                        ✕ Отклонить
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      <div className="admin-card">
+        <h2 className="admin-card-title" id="admin-form-title">
+          {editingPostId ? 'Редактирование вопроса' : 'Загрузка скриншота поста'}
+        </h2>
+
+        <div className="form-group" id="admin-itd-import" style={{ marginBottom: 16 }}>
           <label className="form-label" htmlFor="admin-itd-url">
             Вставить ссылку на пост в ИТД (автозаполнение)
           </label>
@@ -686,29 +1208,28 @@ export function AdminView({ onGoHome }: AdminViewProps) {
                       onFocus={() => setShowAuthorDropdown(true)}
                     />
                     {showAuthorDropdown && authorSearch && (
-                      <div className="author-suggestions-dropdown" id="admin-author-suggestions">
+                      <div className="author-suggestions-dropdown">
                         {authors
-                          .filter((a) => {
-                            const q = authorSearch.toLowerCase();
-                            return (
-                              (a.name || '').toLowerCase().includes(q) ||
-                              (a.handle || '').toLowerCase().includes(q)
-                            );
-                          })
-                          .slice(0, 8)
+                          .filter(
+                            (a) =>
+                              (a.name || '').toLowerCase().includes(authorSearch.toLowerCase()) ||
+                              (a.handle || '').toLowerCase().includes(authorSearch.toLowerCase())
+                          )
                           .map((a) => (
                             <div
                               key={a.id}
                               className="author-suggestion-item"
                               onClick={() => {
                                 setSelectedAuthor(a);
-                                setShowAuthorDropdown(false);
                                 setAuthorSearch('');
+                                setShowAuthorDropdown(false);
                               }}
                             >
                               <div
                                 className="asi-avatar"
-                                style={{ background: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
+                                style={{
+                                  background: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)',
+                                }}
                               >
                                 {a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?')}
                               </div>
@@ -725,7 +1246,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
                   <div className="selected-author-pill">
                     <div
                       className="sap-avatar"
-                      style={{ background: selectedAuthor.avatar_color || selectedAuthor.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
+                      style={{
+                        background: selectedAuthor.avatar_color || selectedAuthor.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)',
+                      }}
                     >
                       {selectedAuthor.avatar_text || selectedAuthor.avatarText || (selectedAuthor.name ? selectedAuthor.name[0] : '?')}
                     </div>
@@ -735,7 +1258,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
                       type="button"
                       className="sap-remove-btn"
                       onClick={() => setSelectedAuthor(null)}
-                      title="Удалить выбор"
+                      title="Сменить автора"
                     >
                       ✕
                     </button>
@@ -745,7 +1268,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
             </div>
 
             <div className="form-group col-span-2">
-              <label className="form-label" htmlFor="admin-post-text">Текст поста (необязательно, для поиска)</label>
+              <label className="form-label" htmlFor="admin-post-text">
+                Текст поста (необязательно, для поиска)
+              </label>
               <textarea
                 id="admin-post-text"
                 rows={2}
@@ -756,7 +1281,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="admin-post-hint">Подсказка для игроков</label>
+              <label className="form-label" htmlFor="admin-post-hint">
+                Подсказка для игроков
+              </label>
               <input
                 type="text"
                 id="admin-post-hint"
@@ -767,7 +1294,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="admin-post-tags">Теги (через запятую)</label>
+              <label className="form-label" htmlFor="admin-post-tags">
+                Теги (через запятую)
+              </label>
               <input
                 type="text"
                 id="admin-post-tags"
@@ -778,7 +1307,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
             </div>
 
             <div className="form-group">
-              <label className="form-label" htmlFor="admin-post-diff">Сложность вопроса</label>
+              <label className="form-label" htmlFor="admin-post-diff">
+                Сложность вопроса
+              </label>
               <select
                 id="admin-post-diff"
                 value={postDiff}
@@ -796,13 +1327,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
               type="button"
               className="btn-secondary-action"
               id="btn-admin-reset-form"
-              onClick={() => {
-                setScreenshotData(null);
-                setSelectedAuthor(null);
-                setPostText('');
-                setPostHint('');
-                setPostTags('');
-              }}
+              onClick={resetPostForm}
             >
               Очистить
             </button>
@@ -812,7 +1337,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
               id="btn-admin-submit"
               disabled={isSavingPost}
             >
-              {isSavingPost ? 'Сохранение...' : 'Добавить в викторину'}
+              {isSavingPost ? 'Сохранение...' : editingPostId ? 'Сохранить изменения' : 'Добавить в викторину'}
             </button>
           </div>
         </form>
@@ -821,6 +1346,15 @@ export function AdminView({ onGoHome }: AdminViewProps) {
       <div className="admin-card">
         <div className="admin-card-title">
           <span>Вопросы в базе</span>
+          <button
+            type="button"
+            className="btn-secondary-action"
+            id="btn-reset-presets"
+            onClick={handleResetPresets}
+            style={{ fontSize: 12, padding: '6px 14px' }}
+          >
+            Восстановить стартовый пак
+          </button>
         </div>
 
         <div className="admin-filter-bar">
@@ -841,46 +1375,73 @@ export function AdminView({ onGoHome }: AdminViewProps) {
           <table className="admin-posts-table">
             <thead>
               <tr>
-                <th style={{ width: 60 }}>Превью</th>
-                <th>Правильный автор</th>
-                <th>Текст поста</th>
-                <th style={{ width: 80, textAlign: 'right' }}>Действия</th>
+                <th>#</th>
+                <th>Скриншот</th>
+                <th>Автор</th>
+                <th>Подсказка</th>
+                <th>Действия</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody id="admin-posts-tbody">
               {paginatedPosts.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="table-empty">Вопросы не найдены</td>
+                  <td colSpan={5} className="table-empty">
+                    {postsSearch ? 'По вашему запросу ничего не найдено' : 'В базе пока нет постов. Добавьте первый скриншот выше!'}
+                  </td>
                 </tr>
               ) : (
-                paginatedPosts.map((p) => {
-                  const author = authors.find((a) => a.id === p.correct_author_id);
+                paginatedPosts.map((post, i) => {
+                  const globalIdx = (postsPage - 1) * postsPerPage + i + 1;
+                  const author = authors.find((a) => a.id === post.correct_author_id) || {
+                    name: post.correct_author_id,
+                    handle: `@${post.correct_author_id}`,
+                  };
+
                   return (
-                    <tr key={p.id}>
-                      <td>
-                        {p.screenshot && (
-                          <img src={p.screenshot} alt="Превью" className="post-table-thumb" />
-                        )}
+                    <tr key={post.id}>
+                      <td className="col-num">{globalIdx}</td>
+                      <td className="col-thumb">
+                        <img
+                          src={post.screenshot}
+                          alt="Thumb"
+                          className="post-table-thumb"
+                          onClick={() => setLightboxImage(post.screenshot)}
+                        />
                       </td>
-                      <td>
+                      <td className="col-author">
                         <div className="table-author-cell">
-                          <strong>{author?.name || p.correct_author_id}</strong>
-                          <small>{author?.handle || ''}</small>
+                          <strong>{author.name}</strong>
+                          <small>{author.handle}</small>
                         </div>
                       </td>
-                      <td>
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                          {p.post_text || 'Скриншот поста'}
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'right' }} className="col-actions">
+                      <td className="col-hint">{post.hint || '—'}</td>
+                      <td className="col-actions">
                         <button
                           type="button"
-                          className="btn-action-icon"
-                          title="Удалить"
-                          onClick={() => handleDeletePost(p.id)}
+                          className="btn-action-icon test-btn"
+                          title="Протестировать вопрос"
+                          onClick={() => {
+                            if (onTestQuestion) onTestQuestion(post);
+                            else alert(`Тестирование вопроса: ${author.name}`);
+                          }}
                         >
-                          ✕
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-action-icon edit-btn"
+                          title="Редактировать"
+                          onClick={() => handleEditPost(post)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-action-icon del-btn"
+                          title="Удалить"
+                          onClick={() => handleDeletePost(post.id)}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                       </td>
                     </tr>
@@ -893,25 +1454,27 @@ export function AdminView({ onGoHome }: AdminViewProps) {
 
         <div className="admin-pagination-bar" id="admin-posts-pagination">
           <div className="admin-pagination-info" id="admin-posts-page-info">
-            {filteredPosts.length > 0
-              ? `Показано ${(postsPage - 1) * postsPerPage + 1}-${Math.min(postsPage * postsPerPage, filteredPosts.length)} из ${filteredPosts.length} постов`
-              : '0 постов'}
+            {filteredPosts.length === 0 ? '0 вопросов' : `Показано ${(postsPage - 1) * postsPerPage + 1}–${Math.min(filteredPosts.length, postsPage * postsPerPage)} из ${filteredPosts.length} вопросов`}
           </div>
           <div className="admin-pagination-controls">
             <button
               type="button"
               className="btn-page-nav"
+              id="btn-posts-prev"
+              title="Предыдущая страница"
               disabled={postsPage <= 1}
               onClick={() => setPostsPage((p) => Math.max(1, p - 1))}
             >
               ← Назад
             </button>
-            <span className="admin-page-number">
+            <span className="admin-page-number" id="posts-page-number">
               {postsPage} / {totalPostsPages}
             </span>
             <button
               type="button"
               className="btn-page-nav"
+              id="btn-posts-next"
+              title="Следующая страница"
               disabled={postsPage >= totalPostsPages}
               onClick={() => setPostsPage((p) => Math.min(totalPostsPages, p + 1))}
             >
@@ -919,55 +1482,35 @@ export function AdminView({ onGoHome }: AdminViewProps) {
             </button>
           </div>
         </div>
-      </div>
 
-      <div className="admin-card">
-        <div className="admin-card-title">
-          <span>Заявки на посты ({suggestions.length})</span>
+        <div className="admin-backup-bar">
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            Резервная копия (скриншоты и посты):
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              type="button"
+              className="btn-secondary-action"
+              id="btn-export-backup"
+              onClick={handleExportBackup}
+              style={{ fontSize: 12, padding: '6px 14px' }}
+            >
+              Экспорт JSON
+            </button>
+            <label className="btn-secondary-action" style={{ fontSize: 12, padding: '6px 14px', cursor: 'pointer' }}>
+              Импорт JSON
+              <input
+                type="file"
+                id="input-import-backup"
+                accept=".json"
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files?.[0]) handleImportBackup(e.target.files[0]);
+                }}
+              />
+            </label>
+          </div>
         </div>
-
-        {suggestions.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-            Новых предложений нет
-          </div>
-        ) : (
-          <div className="admin-suggestions-container">
-            {suggestions.map((s) => (
-              <div key={s.id} className="admin-suggestion-card">
-                {s.screenshot && (
-                  <img src={s.screenshot} alt="Скриншот" className="asc-thumb" />
-                )}
-                <div className="asc-info">
-                  <div className="asc-author-line">Автор: {s.author_name}</div>
-                  <div className="asc-meta-line">Предложил: {s.submitted_by}</div>
-                  <div className="asc-comment">{s.post_text || 'Без описания'}</div>
-                  <div className="asc-actions">
-                    <button
-                      type="button"
-                      className="btn-approve"
-                      onClick={() =>
-                        handleModerateSuggestion(s.id, 'approved', {
-                          correctAuthorId: s.author_id || s.author_name,
-                          screenshot: s.screenshot,
-                          postText: s.post_text,
-                        })
-                      }
-                    >
-                      Одобрить в базу
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-reject"
-                      onClick={() => handleModerateSuggestion(s.id, 'rejected')}
-                    >
-                      Отклонить
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       <div className="admin-card">
@@ -976,8 +1519,9 @@ export function AdminView({ onGoHome }: AdminViewProps) {
           <button
             type="button"
             className="btn-primary-action"
+            id="btn-open-new-author-modal"
             style={{ fontSize: 12, padding: '6px 16px' }}
-            onClick={() => setShowNewAuthorModal(true)}
+            onClick={openCreateAuthorModal}
           >
             + Добавить автора
           </button>
@@ -986,6 +1530,7 @@ export function AdminView({ onGoHome }: AdminViewProps) {
         <div className="admin-filter-bar">
           <input
             type="text"
+            id="admin-authors-search-input"
             className="search-input"
             placeholder="Поиск авторов по имени или @handle..."
             value={authorsSearch}
@@ -996,56 +1541,79 @@ export function AdminView({ onGoHome }: AdminViewProps) {
           />
         </div>
 
-        <div className="admin-authors-list admin-authors-scroll-container">
-          {paginatedAuthors.map((a) => (
-            <div key={a.id} className="admin-author-item">
-              <div
-                className="aai-avatar"
-                style={{ background: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
-              >
-                {a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?')}
-              </div>
-              <div className="aai-info">
-                <div className="aai-name-row">
-                  <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{a.name}</strong>
-                  {a.badge && <span className="badge-tag">{a.badge}</span>}
-                </div>
-                <span className="aai-handle">{a.handle}</span>
-                {a.bio && <div className="aai-bio">{a.bio}</div>}
-              </div>
-              <div className="aai-actions">
-                <button
-                  type="button"
-                  className="btn-del-author"
-                  onClick={() => handleDeleteAuthor(a.id)}
-                  title="Удалить автора"
-                >
-                  ✕
-                </button>
-              </div>
+        <div className="admin-authors-list admin-authors-scroll-container" id="admin-authors-list">
+          {paginatedAuthors.length === 0 ? (
+            <div className="table-empty" style={{ gridColumn: '1 / -1' }}>
+              {authorsSearch ? 'Авторы по запросу не найдены' : 'Авторов в базе пока нет. Нажмите «+ Добавить автора».'}
             </div>
-          ))}
+          ) : (
+            paginatedAuthors.map((a) => (
+              <div key={a.id} className="admin-author-item">
+                <div
+                  className="aai-avatar"
+                  style={{ background: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
+                >
+                  {a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?')}
+                </div>
+                <div className="aai-info">
+                  <div className="aai-name-row">
+                    <strong>{a.name}</strong>
+                    {a.verified && (
+                      <span className="verified-icon">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      </span>
+                    )}
+                    {a.badge && <span className="badge-tag">{a.badge}</span>}
+                  </div>
+                  <span className="aai-handle">{a.handle || `@${a.id}`}</span>
+                  {(a.bio || a.style) && <p className="aai-bio">{a.bio || a.style}</p>}
+                </div>
+                <div className="aai-actions">
+                  <button
+                    type="button"
+                    className="btn-edit-author"
+                    title="Редактировать автора"
+                    onClick={() => openEditAuthorModal(a)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-del-author"
+                    title="Удалить автора"
+                    onClick={() => handleDeleteAuthor(a.id, a.name)}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         <div className="admin-pagination-bar" id="admin-authors-pagination">
           <div className="admin-pagination-info" id="admin-authors-page-info">
-            {filteredAuthors.length} авторов
+            {filteredAuthors.length === 0 ? '0 авторов' : `Показано ${(authorsPage - 1) * authorsPerPage + 1}–${Math.min(filteredAuthors.length, authorsPage * authorsPerPage)} из ${filteredAuthors.length} авторов`}
           </div>
           <div className="admin-pagination-controls">
             <button
               type="button"
               className="btn-page-nav"
+              id="btn-authors-prev"
+              title="Предыдущая страница"
               disabled={authorsPage <= 1}
               onClick={() => setAuthorsPage((p) => Math.max(1, p - 1))}
             >
               ← Назад
             </button>
-            <span className="admin-page-number">
+            <span className="admin-page-number" id="authors-page-number">
               {authorsPage} / {totalAuthorsPages}
             </span>
             <button
               type="button"
               className="btn-page-nav"
+              id="btn-authors-next"
+              title="Следующая страница"
               disabled={authorsPage >= totalAuthorsPages}
               onClick={() => setAuthorsPage((p) => Math.min(totalAuthorsPages, p + 1))}
             >
@@ -1093,47 +1661,53 @@ export function AdminView({ onGoHome }: AdminViewProps) {
         </button>
       </div>
 
-      {showNewAuthorModal && (
+      {showAuthorModal && (
         <div className="modal-backdrop" id="modal-new-author" style={{ display: 'flex' }}>
           <div className="modal-card" style={{ maxWidth: 480 }}>
-            <button className="modal-close-btn" onClick={() => setShowNewAuthorModal(false)}>
+            <button className="modal-close-btn" id="btn-close-new-author-modal" onClick={() => setShowAuthorModal(false)}>
               ✕
             </button>
-            <h2 className="modal-title">Добавить автора в базу</h2>
+            <h2 className="modal-title" id="modal-author-title">
+              {editingAuthorId ? 'Редактировать автора' : 'Добавить автора в базу'}
+            </h2>
             <form id="form-add-author" onSubmit={handleSaveAuthorModal}>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label className="form-label">Отображаемое имя *</label>
                 <input
                   type="text"
+                  id="modal-author-name"
                   required
                   placeholder="Например: Шляпа Боярского"
-                  value={newAuthorName}
-                  onChange={(e) => setNewAuthorName(e.target.value)}
+                  value={modalAuthorName}
+                  onChange={(e) => setModalAuthorName(e.target.value)}
                 />
               </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label className="form-label">Handle (@никнейм)</label>
                 <input
                   type="text"
+                  id="modal-author-handle"
                   placeholder="@shlyapa"
-                  value={newAuthorHandle}
-                  onChange={(e) => setNewAuthorHandle(e.target.value)}
+                  value={modalAuthorHandle}
+                  onChange={(e) => setModalAuthorHandle(e.target.value)}
                 />
               </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label className="form-label">Бейдж / титул</label>
                 <input
                   type="text"
+                  id="modal-author-badge"
                   placeholder="Топ-автор, Dev, Основатель..."
-                  value={newAuthorBadge}
-                  onChange={(e) => setNewAuthorBadge(e.target.value)}
+                  value={modalAuthorBadge}
+                  onChange={(e) => setModalAuthorBadge(e.target.value)}
                 />
               </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label className="form-label">Цвет аватара</label>
                 <select
-                  value={newAuthorColor}
-                  onChange={(e) => setNewAuthorColor(e.target.value)}
+                  id="modal-author-color"
+                  value={modalAuthorColor}
+                  onChange={(e) => setModalAuthorColor(e.target.value)}
                 >
                   <option value="linear-gradient(135deg, #0288d1, #26c6da)">Голубой неон</option>
                   <option value="linear-gradient(135deg, #7c3aed, #ec4899)">Фиолетово-розовый</option>
@@ -1141,34 +1715,68 @@ export function AdminView({ onGoHome }: AdminViewProps) {
                   <option value="linear-gradient(135deg, #10b981, #06b6d4)">Изумрудный</option>
                   <option value="linear-gradient(135deg, #f59e0b, #ef4444)">Янтарный</option>
                   <option value="linear-gradient(135deg, #3b82f6, #8b5cf6)">Индиго</option>
+                  <option value="linear-gradient(135deg, #ec4899, #f43f5e)">Малиновый</option>
+                  <option value="linear-gradient(135deg, #84cc16, #22c55e)">Лаймовый</option>
+                  <option value="linear-gradient(135deg, #14b8a6, #3b82f6)">Морской</option>
+                  <option value="linear-gradient(135deg, #f97316, #facc15)">Закат</option>
+                  <option value="linear-gradient(135deg, #a855f7, #6366f1)">Лавандовый</option>
+                  <option value="linear-gradient(135deg, #06b6d4, #22c55e)">Мятный</option>
+                  <option value="linear-gradient(135deg, #f43f5e, #fb923c)">Коралловый</option>
+                  <option value="linear-gradient(135deg, #64748b, #0f172a)">Графитовый</option>
+                  <option value="linear-gradient(135deg, #d946ef, #f59e0b)">Фуксия-золото</option>
+                  <option value="linear-gradient(135deg, #0ea5e9, #6366f1)">Небесный</option>
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 16 }}>
                 <label className="form-label">Стиль / био автора</label>
                 <textarea
+                  id="modal-author-bio"
                   rows={2}
                   placeholder="О чем обычно пишет этот автор..."
-                  value={newAuthorBio}
-                  onChange={(e) => setNewAuthorBio(e.target.value)}
+                  value={modalAuthorBio}
+                  onChange={(e) => setModalAuthorBio(e.target.value)}
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <div className="form-group" style={{ marginBottom: 20, flexDirection: 'row', alignSelf: 'flex-start', alignItems: 'center', gap: 8 }}>
                 <input
                   type="checkbox"
-                  id="verified-check"
-                  checked={newAuthorVerified}
-                  onChange={(e) => setNewAuthorVerified(e.target.checked)}
+                  id="modal-author-verified"
+                  checked={modalAuthorVerified}
+                  onChange={(e) => setModalAuthorVerified(e.target.checked)}
                   style={{ width: 16, height: 16 }}
                 />
-                <label htmlFor="verified-check" style={{ fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                <label htmlFor="modal-author-verified" style={{ fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
                   Галочка верификации
                 </label>
               </div>
-              <button type="submit" className="btn-primary-action" style={{ width: '100%', justifyContent: 'center' }}>
-                Сохранить автора
+              <button
+                type="submit"
+                className="btn-primary-action"
+                id="btn-save-author-modal"
+                style={{ width: '100%', justifyContent: 'center' }}
+              >
+                {editingAuthorId ? 'Сохранить изменения' : 'Сохранить автора'}
               </button>
             </form>
           </div>
+        </div>
+      )}
+
+      {lightboxImage && (
+        <div
+          className="lightbox-backdrop"
+          id="image-lightbox"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="lightbox-content">
+            <img src={lightboxImage} alt="Zoomed Screenshot" className="lightbox-img" id="lightbox-img" />
+          </div>
+        </div>
+      )}
+
+      {toastMessage && (
+        <div id="toast-container">
+          <div className="toast toast-success">{toastMessage}</div>
         </div>
       )}
     </section>

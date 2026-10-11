@@ -8,6 +8,7 @@ export interface Author {
   avatar_text?: string;
   badge?: string | null;
   bio?: string | null;
+  style?: string | null;
   verified?: boolean;
 }
 
