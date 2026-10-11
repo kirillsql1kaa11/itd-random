@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { Author } from '@/types';
-import { Search, UserPlus, BadgeCheck, Users } from 'lucide-react';
 import { soundFx } from '@/lib/sound';
 
 interface AuthorsViewProps {
@@ -13,23 +12,16 @@ export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-
-  const loadAuthors = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/authors');
-      const data = await res.json();
-      if (data && data.ok) {
-        setAuthors(data.authors || []);
-      }
-    } catch {
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [page, setPage] = useState(1);
+  const perPage = 10;
 
   useEffect(() => {
-    loadAuthors();
+    fetch('/api/authors')
+      .then((res) => res.json())
+      .then((d) => {
+        if (d.ok) setAuthors(d.authors || []);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const filtered = authors.filter((a) => {
@@ -41,102 +33,115 @@ export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
     );
   });
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-heading font-extrabold text-2xl sm:text-3xl text-white">
-            Авторы ИТД
-          </h2>
-          <p className="text-xs sm:text-sm text-white/50">
-            Список создателей контента, чьи посты участвуют в викторине
-          </p>
-        </div>
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
 
+  return (
+    <section className="app-view">
+      <div className="page-header-row">
+        <div>
+          <h1 className="page-main-title">Авторы ИТД</h1>
+          <p className="page-sub-title">Популярные авторы ленты и их индивидуальный стиль</p>
+        </div>
         <button
           type="button"
+          className="btn-primary-action"
+          id="btn-open-suggest-author"
+          style={{ fontSize: 12, padding: '8px 16px' }}
           onClick={() => {
             soundFx.playClick();
             onOpenSuggestAuthor();
           }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white text-xs font-semibold transition-all cursor-pointer shadow-[0_0_15px_rgba(0,128,255,0.3)]"
         >
-          <UserPlus size={16} />
-          <span>Предложить автора</span>
+          + Предложить автора
         </button>
       </div>
 
-      <div className="relative">
-        <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+      <div className="authors-search-wrapper">
         <input
           type="text"
+          id="authors-search-input"
+          className="search-input"
+          placeholder="Поиск по имени, @handle или стилю..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Поиск по имени или никнейму..."
-          className="w-full bg-[#121218] border border-white/10 focus:border-[#0080ff] rounded-xl pl-9 pr-4 py-2.5 text-sm text-white placeholder-white/40 outline-none"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
         />
       </div>
 
-      {loading ? (
-        <div className="p-16 text-center text-white/50 text-sm">
-          Загрузка каталога авторов...
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="p-16 text-center text-white/50 text-sm">
-          Авторы не найдены
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((author) => {
-            const avatarColor = author.avatar_color || author.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)';
-            const avatarText = author.avatar_text || author.avatarText || (author.name ? author.name[0] : '?');
+      <div className="authors-catalog-grid" id="public-authors-grid">
+        {paginated.length === 0 ? (
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '36px 0', color: 'var(--text-muted)' }}>
+            {loading ? 'Загрузка авторов...' : 'Авторы не найдены'}
+          </div>
+        ) : (
+          paginated.map((a) => {
+            const avatarColor = a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)';
+            const avatarText = a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?');
 
             return (
-              <div
-                key={author.id}
-                className="p-5 rounded-2xl bg-[#121218] border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between space-y-3"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center text-base font-bold text-white shrink-0 shadow-md"
-                    style={{ background: avatarColor }}
-                  >
+              <div key={a.id} className="author-card-public">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div className="acp-avatar" style={{ background: avatarColor }}>
                     {avatarText}
                   </div>
-
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <strong className="text-sm font-semibold truncate text-white">
-                        {author.name}
-                      </strong>
-                      {author.verified && (
-                        <BadgeCheck size={15} className="text-[#0080ff] shrink-0" />
-                      )}
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <strong className="acp-name">{a.name}</strong>
+                      {a.verified && <span className="verified-icon">✓</span>}
                     </div>
-                    <span className="block text-xs text-white/50 truncate">
-                      {author.handle}
-                    </span>
+                    <span className="acp-handle">{a.handle}</span>
                   </div>
                 </div>
 
-                {author.bio && (
-                  <p className="text-xs text-white/60 line-clamp-2 leading-relaxed">
-                    {author.bio}
-                  </p>
-                )}
+                {a.badge && <span className="acp-badge-tag">{a.badge}</span>}
 
-                {author.badge && (
-                  <div className="pt-2 border-t border-white/5">
-                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold bg-white/5 text-white/60">
-                      {author.badge}
-                    </span>
-                  </div>
-                )}
+                {a.bio && <p className="acp-bio">{a.bio}</p>}
+
+                <a
+                  href={`https://xn--d1ah4a.com/${a.handle || ''}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="acp-link"
+                >
+                  Профиль в ИТД ↗
+                </a>
               </div>
             );
-          })}
+          })
+        )}
+      </div>
+
+      <div className="pagination-bar" id="public-authors-pagination" style={{ marginTop: 16 }}>
+        <div className="pagination-info" id="public-authors-page-info">
+          {filtered.length} авторов
         </div>
-      )}
-    </div>
+        <div className="pagination-controls">
+          <button
+            type="button"
+            className="btn-page-nav"
+            id="btn-public-authors-prev"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            ← Назад
+          </button>
+          <span className="pagination-page-number" id="public-authors-page-number">
+            {page} / {totalPages}
+          </span>
+          <button
+            type="button"
+            className="btn-page-nav"
+            id="btn-public-authors-next"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            Вперед →
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }

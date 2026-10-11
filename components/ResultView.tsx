@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import confetti from 'canvas-confetti';
-import { Trophy, Flame, Target, CheckCircle2, RotateCcw, Home, Download, Check, Share2 } from 'lucide-react';
 import { generateShareCard } from '@/lib/sharecard';
 import { soundFx } from '@/lib/sound';
 import { GameMode } from '@/types';
@@ -34,11 +33,8 @@ export function ResultView({
   onGoHome,
   onLeaderboardSubmitted,
 }: ResultViewProps) {
-  const [currentNick, setCurrentNick] = useState(nickname || 'Аноним');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
   const [shareImage, setShareImage] = useState<string | null>(null);
-  const [isGeneratingCard, setIsGeneratingCard] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
 
   useEffect(() => {
     if (accuracy >= 60 || score > 500) {
@@ -51,187 +47,178 @@ export function ResultView({
         });
       } catch {}
     }
-  }, [accuracy, score]);
 
-  const handleSubmitScore = async () => {
-    if (!sessionToken || submitted || isSubmitting) return;
-    setIsSubmitting(true);
-    soundFx.playClick();
+    generateShareCard({
+      nickname: nickname || 'Аноним',
+      score,
+      accuracy,
+      streak: maxStreak,
+      mode,
+    }).then((img) => {
+      if (img) setShareImage(img);
+    });
 
-    try {
-      const res = await fetch('/api/quiz', {
+    if (sessionToken) {
+      fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'submit_score',
           sessionToken,
-          nickname: currentNick.trim() || 'Аноним',
+          nickname: nickname || 'Аноним',
         }),
-      });
-
-      if (res.ok) {
-        setSubmitted(true);
-        if (onLeaderboardSubmitted) onLeaderboardSubmitted();
-      }
-    } catch {
-    } finally {
-      setIsSubmitting(false);
+      })
+        .then((res) => {
+          if (res.ok && onLeaderboardSubmitted) onLeaderboardSubmitted();
+        })
+        .catch(() => {});
     }
-  };
+  }, []);
 
-  const handleCreateShareCard = async () => {
+  const handleCopyImage = async () => {
     soundFx.playClick();
-    setIsGeneratingCard(true);
+    if (!shareImage) return;
     try {
-      const img = await generateShareCard({
-        nickname: currentNick,
-        score,
-        accuracy,
-        streak: maxStreak,
-        mode,
-      });
-      setShareImage(img);
+      const res = await fetch(shareImage);
+      const blob = await res.blob();
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob }),
+      ]);
+      setCopyFeedback('Картинка скопирована!');
+      setTimeout(() => setCopyFeedback(null), 2000);
     } catch {
-    } finally {
-      setIsGeneratingCard(false);
+      const a = document.createElement('a');
+      a.href = shareImage;
+      a.download = `itd-result-${score}.png`;
+      a.click();
     }
   };
+
+  const handleShareItd = () => {
+    soundFx.playClick();
+    const text = `Мой результат в викторине ИТД: ${score} очков (точность ${accuracy}%, серия ${maxStreak})! Попробуй угадать: https://итд.com/`;
+    window.open(`https://xn--d1ah4a.com/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handleCopyText = async () => {
+    soundFx.playClick();
+    const text = `Мой результат в викторине ИТД: ${score} очков, точность ${accuracy}%, максимальная серия ${maxStreak}! Сыграй сам: https://итд.com/`;
+    await navigator.clipboard.writeText(text);
+    setCopyFeedback('Текст скопирован!');
+    setTimeout(() => setCopyFeedback(null), 2000);
+  };
+
+  let rankText = 'Новичок ИТД';
+  if (score > 1500) rankText = 'Легенда ИТД';
+  else if (score > 1000) rankText = 'Ветеран ленты';
+  else if (score > 500) rankText = 'Знаток ИТД';
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div className="text-center space-y-2">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-[#0080ff]/15 text-[#0080ff] border border-[#0080ff]/30">
-          Игра завершена
-        </span>
-        <h2 className="font-heading font-extrabold text-3xl sm:text-4xl text-white">
-          Ваш результат
-        </h2>
-        <p className="text-sm text-white/50">
-          {mode === 'blitz' ? 'Блиц-раунд 10 вопросов' : mode === 'survival' ? 'Режим Выживание' : 'Свободный режим'}
-        </p>
-      </div>
+    <section className="app-view">
+      <div className="summary-card">
+        <h2 className="summary-title">Раунд завершен!</h2>
+        <div className="summary-rank">{rankText}</div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-4 rounded-2xl bg-[#14141c] border border-white/10 text-center">
-          <div className="w-8 h-8 rounded-lg bg-[#0080ff]/10 text-[#0080ff] flex items-center justify-center mx-auto mb-2">
-            <Trophy size={18} />
+        <div className="summary-stats-grid">
+          <div className="summary-stat-box">
+            <div className="val">{score}</div>
+            <div className="lbl">Очки</div>
           </div>
-          <span className="block text-[11px] font-semibold text-white/50 uppercase">Очки</span>
-          <strong className="font-heading font-extrabold text-2xl text-white">{score}</strong>
+          <div className="summary-stat-box">
+            <div className="val">{maxStreak}</div>
+            <div className="lbl">Макс. серия</div>
+          </div>
+          <div className="summary-stat-box">
+            <div className="val">{accuracy}%</div>
+            <div className="lbl">Точность</div>
+          </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-[#14141c] border border-white/10 text-center">
-          <div className="w-8 h-8 rounded-lg bg-[#00ba7c]/10 text-[#00ba7c] flex items-center justify-center mx-auto mb-2">
-            <Target size={18} />
-          </div>
-          <span className="block text-[11px] font-semibold text-white/50 uppercase">Точность</span>
-          <strong className="font-heading font-extrabold text-2xl text-white">{accuracy}%</strong>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#14141c] border border-white/10 text-center">
-          <div className="w-8 h-8 rounded-lg bg-[#f59e0b]/10 text-[#f59e0b] flex items-center justify-center mx-auto mb-2">
-            <Flame size={18} />
-          </div>
-          <span className="block text-[11px] font-semibold text-white/50 uppercase">Серия</span>
-          <strong className="font-heading font-extrabold text-2xl text-white">{maxStreak}</strong>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-[#14141c] border border-white/10 text-center">
-          <div className="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center mx-auto mb-2">
-            <CheckCircle2 size={18} />
-          </div>
-          <span className="block text-[11px] font-semibold text-white/50 uppercase">Ответы</span>
-          <strong className="font-heading font-extrabold text-2xl text-white">
-            {correctCount}/{totalCount}
-          </strong>
-        </div>
-      </div>
-
-      {sessionToken && !submitted && (
-        <div className="p-5 rounded-2xl bg-[#161622] border border-white/10 space-y-3">
-          <span className="block text-xs font-semibold text-white/70 uppercase">
-            Сохранить в рейтинг игроков
-          </span>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={currentNick}
-              onChange={(e) => setCurrentNick(e.target.value)}
-              placeholder="Ваш никнейм..."
-              maxLength={24}
-              className="flex-1 bg-[#101015] border border-white/15 focus:border-[#0080ff] rounded-xl px-4 py-2.5 text-white text-sm outline-none"
+        {shareImage && (
+          <div className="share-card-wrapper">
+            <img
+              src={shareImage}
+              alt="Карточка результата"
+              className="share-card-preview"
+              style={{ display: 'block' }}
             />
+          </div>
+        )}
+
+        {copyFeedback && (
+          <div style={{ color: 'var(--accent-green)', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+            {copyFeedback}
+          </div>
+        )}
+
+        <div className="summary-actions">
+          <button
+            type="button"
+            className="btn-primary-action summary-play-btn"
+            onClick={() => {
+              soundFx.playClick();
+              onPlayAgain();
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Сыграть еще раз</span>
+          </button>
+
+          <div className="summary-share-grid">
             <button
               type="button"
-              disabled={isSubmitting}
-              onClick={handleSubmitScore}
-              className="px-5 py-2.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white text-sm font-semibold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-2 shrink-0"
+              className="btn-secondary-action share-btn"
+              onClick={handleCopyImage}
             >
-              {isSubmitting ? 'Сохранение...' : 'Отправить'}
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>Скопировать картинку</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-secondary-action share-btn"
+              onClick={handleShareItd}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="5" r="3"></circle>
+                <circle cx="6" cy="12" r="3"></circle>
+                <circle cx="18" cy="19" r="3"></circle>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+              </svg>
+              <span>Поделиться в ИТД</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-secondary-action share-btn"
+              onClick={handleCopyText}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+              </svg>
+              <span>Скопировать текст</span>
+            </button>
+          </div>
+
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <button
+              type="button"
+              className="btn-secondary-action"
+              onClick={onGoHome}
+              style={{ fontSize: 13, padding: '8px 20px' }}
+            >
+              ← Вернуться на главную
             </button>
           </div>
         </div>
-      )}
-
-      {submitted && (
-        <div className="p-4 rounded-xl bg-[#00ba7c]/15 border border-[#00ba7c]/30 text-center text-sm font-semibold text-[#00ba7c] flex items-center justify-center gap-2">
-          <Check size={18} />
-          <span>Результат успешно зафиксирован в рейтинге</span>
-        </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row items-center gap-3">
-        <button
-          type="button"
-          onClick={onPlayAgain}
-          className="w-full sm:flex-1 py-3.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white font-heading font-bold text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
-        >
-          <RotateCcw size={16} />
-          <span>Сыграть снова</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleCreateShareCard}
-          disabled={isGeneratingCard}
-          className="w-full sm:flex-1 py-3.5 rounded-xl bg-[#14141c] hover:bg-[#1a1a24] border border-white/15 text-white font-heading font-semibold text-sm transition-all cursor-pointer flex items-center justify-center gap-2"
-        >
-          <Share2 size={16} />
-          <span>{isGeneratingCard ? 'Генерация...' : 'Поделиться'}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onGoHome}
-          className="w-full sm:w-auto px-5 py-3.5 rounded-xl bg-[#14141c] hover:bg-[#1a1a24] border border-white/15 text-white/70 hover:text-white text-sm font-semibold transition-all cursor-pointer flex items-center justify-center gap-2"
-        >
-          <Home size={16} />
-          <span>Меню</span>
-        </button>
       </div>
-
-      {shareImage && (
-        <div className="p-4 rounded-2xl bg-[#121218] border border-white/10 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-white/70 uppercase">
-              Карточка для соцсетей
-            </span>
-            <a
-              href={shareImage}
-              download={`itd-quiz-${score}pts.png`}
-              className="flex items-center gap-1.5 text-xs text-[#0080ff] hover:text-[#3399ff] font-semibold"
-            >
-              <Download size={14} />
-              <span>Скачать PNG</span>
-            </a>
-          </div>
-          <img
-            src={shareImage}
-            alt="Результат викторины"
-            className="w-full rounded-xl border border-white/10 shadow-lg"
-          />
-        </div>
-      )}
-    </div>
+    </section>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameMode, QuizQuestion, UserStats } from '@/types';
 import { Header } from '@/components/Header';
+import { Footer } from '@/components/Footer';
 import { HomeView } from '@/components/HomeView';
 import { QuizView } from '@/components/QuizView';
 import { ResultView } from '@/components/ResultView';
@@ -297,7 +298,7 @@ export default function App() {
   const accuracy = totalAnswered > 0 ? Math.round((correctCount / totalAnswered) * 100) : 0;
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#08080a] text-[#f5f5f7]">
+    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Header
         activeTab={activeTab}
         onTabChange={(t) => {
@@ -307,7 +308,7 @@ export default function App() {
         onOpenRules={() => setIsRulesOpen(true)}
       />
 
-      <main className="flex-1 max-w-6xl w-full mx-auto px-4 py-6 md:py-10">
+      <main className="main-content">
         {activeTab === 'home' && (
           <HomeView
             nickname={nickname}
@@ -373,14 +374,22 @@ export default function App() {
 
         {activeTab === 'stats' && <StatsView />}
 
-        {activeTab === 'admin' && <AdminView />}
+        {activeTab === 'admin' && (
+          <AdminView onGoHome={() => setActiveTab('home')} />
+        )}
       </main>
+
+      <Footer onOpenAdmin={() => setActiveTab('admin')} />
 
       <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
       <SuggestPostModal
         isOpen={isSuggestPostOpen}
         onClose={() => setIsSuggestPostOpen(false)}
         nickname={nickname}
+        onOpenSuggestAuthor={() => {
+          setIsSuggestPostOpen(false);
+          setIsSuggestAuthorOpen(true);
+        }}
       />
       <SuggestAuthorModal
         isOpen={isSuggestAuthorOpen}

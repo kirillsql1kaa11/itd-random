@@ -1,34 +1,61 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { Shield, Key, Plus, Trash2, Check, X, Download, Lock, LogOut, RefreshCw, ExternalLink } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Author } from '@/types';
 import { soundFx } from '@/lib/sound';
 
-export function AdminView() {
+interface AdminViewProps {
+  onGoHome: () => void;
+}
+
+export function AdminView({ onGoHome }: AdminViewProps) {
   const [token, setToken] = useState<string | null>(null);
-  const [password, setPassword] = useState('');
+  const [pinPassword, setPinPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [activeTab, setActiveTab] = useState<'posts' | 'authors' | 'suggestions' | 'itd' | 'password'>('posts');
 
   const [posts, setPosts] = useState<any[]>([]);
   const [authors, setAuthors] = useState<Author[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
 
   const [itdUrl, setItdUrl] = useState('');
   const [itdToken, setItdToken] = useState('');
   const [itdLoading, setItdLoading] = useState(false);
-  const [itdResult, setItdResult] = useState<any | null>(null);
+
+  const [screenshotData, setScreenshotData] = useState<string | null>(null);
+  const [censorTool, setCensorTool] = useState<'blackout' | 'blur'>('blackout');
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [canvasHistory, setCanvasHistory] = useState<ImageData[]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
+
+  const [authorSearch, setAuthorSearch] = useState('');
+  const [selectedAuthor, setSelectedAuthor] = useState<Author | null>(null);
+  const [showAuthorDropdown, setShowAuthorDropdown] = useState(false);
+  const [postText, setPostText] = useState('');
+  const [postHint, setPostHint] = useState('');
+  const [postTags, setPostTags] = useState('');
+  const [postDiff, setPostDiff] = useState('normal');
+  const [isSavingPost, setIsSavingPost] = useState(false);
+
+  const [postsSearch, setPostsSearch] = useState('');
+  const [postsPage, setPostsPage] = useState(1);
+  const postsPerPage = 10;
+
+  const [authorsSearch, setAuthorsSearch] = useState('');
+  const [authorsPage, setAuthorsPage] = useState(1);
+  const authorsPerPage = 10;
 
   const [newPassword, setNewPassword] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
 
+  const [showNewAuthorModal, setShowNewAuthorModal] = useState(false);
   const [newAuthorName, setNewAuthorName] = useState('');
   const [newAuthorHandle, setNewAuthorHandle] = useState('');
+  const [newAuthorBadge, setNewAuthorBadge] = useState('');
   const [newAuthorColor, setNewAuthorColor] = useState('linear-gradient(135deg, #0288d1, #26c6da)');
   const [newAuthorBio, setNewAuthorBio] = useState('');
+  const [newAuthorVerified, setNewAuthorVerified] = useState(true);
 
   useEffect(() => {
     const savedToken = sessionStorage.getItem('itd_admin_token');
@@ -36,45 +63,11 @@ export function AdminView() {
       setToken(savedToken);
       loadAdminData(savedToken);
     }
+    const savedItdToken = localStorage.getItem('itd_import_token');
+    if (savedItdToken) setItdToken(savedItdToken);
   }, []);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!password) return;
-    setIsLoggingIn(true);
-    setLoginError('');
-    soundFx.playClick();
-
-    try {
-      const res = await fetch('/api/admin?action=login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
-      });
-      const data = await res.json();
-      if (res.ok && data.token) {
-        setToken(data.token);
-        sessionStorage.setItem('itd_admin_token', data.token);
-        setPassword('');
-        loadAdminData(data.token);
-      } else {
-        setLoginError(data.error || 'Неверный пароль');
-      }
-    } catch {
-      setLoginError('Ошибка подключения к серверу');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleLogout = () => {
-    soundFx.playClick();
-    sessionStorage.removeItem('itd_admin_token');
-    setToken(null);
-  };
-
   const loadAdminData = async (authToken: string) => {
-    setLoadingData(true);
     try {
       const [resPosts, resAuthors, resSug] = await Promise.all([
         fetch('/api/admin?action=get_posts', {
@@ -100,14 +93,262 @@ export function AdminView() {
       if (dataPosts.ok) setPosts(dataPosts.posts || []);
       if (dataAuthors.ok) setAuthors(dataAuthors.authors || []);
       if (dataSug.ok) setSuggestions(dataSug.suggestions || []);
+    } catch {}
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pinPassword) return;
+    setIsLoggingIn(true);
+    setLoginError('');
+    soundFx.playClick();
+
+    try {
+      const res = await fetch('/api/admin?action=login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pinPassword }),
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setToken(data.token);
+        sessionStorage.setItem('itd_admin_token', data.token);
+        setPinPassword('');
+        loadAdminData(data.token);
+      } else {
+        setLoginError(data.error || 'Неверный пароль');
+      }
     } catch {
+      setLoginError('Ошибка подключения к серверу');
     } finally {
-      setLoadingData(false);
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleLogout = () => {
+    soundFx.playClick();
+    sessionStorage.removeItem('itd_admin_token');
+    setToken(null);
+    onGoHome();
+  };
+
+  const handleFile = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      initCanvasWithImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  useEffect(() => {
+    if (!token) return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            e.preventDefault();
+            handleFile(file);
+          }
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [token]);
+
+  const initCanvasWithImage = (dataUrl: string) => {
+    setScreenshotData(dataUrl);
+    setCanvasHistory([]);
+    const img = new Image();
+    img.onload = () => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0);
+      setCanvasHistory([ctx.getImageData(0, 0, canvas.width, canvas.height)]);
+    };
+    img.src = dataUrl;
+  };
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+    setIsDrawing(true);
+    setStartPos({ x, y });
+  };
+
+  const handleCanvasMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !startPos) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const endX = (e.clientX - rect.left) * scaleX;
+    const endY = (e.clientY - rect.top) * scaleY;
+
+    const x = Math.min(startPos.x, endX);
+    const y = Math.min(startPos.y, endY);
+    const w = Math.abs(endX - startPos.x);
+    const h = Math.abs(endY - startPos.y);
+
+    if (w > 4 && h > 4) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        if (censorTool === 'blackout') {
+          ctx.fillStyle = '#16161a';
+          ctx.fillRect(x, y, w, h);
+        } else {
+          ctx.filter = 'blur(10px)';
+          ctx.drawImage(canvas, x, y, w, h, x, y, w, h);
+          ctx.filter = 'none';
+        }
+        setCanvasHistory((prev) => [...prev, ctx.getImageData(0, 0, canvas.width, canvas.height)]);
+      }
+    }
+
+    setIsDrawing(false);
+    setStartPos(null);
+  };
+
+  const handleUndoCensor = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || canvasHistory.length <= 1) return;
+    const nextHist = canvasHistory.slice(0, -1);
+    const last = nextHist[nextHist.length - 1];
+    const ctx = canvas.getContext('2d');
+    if (ctx && last) {
+      ctx.putImageData(last, 0, 0);
+      setCanvasHistory(nextHist);
+    }
+  };
+
+  const handleItdImport = async () => {
+    if (!itdUrl) {
+      alert('Вставьте ссылку на пост ИТД');
+      return;
+    }
+    if (!itdToken) {
+      alert('Укажите токен авторизации ИТД');
+      return;
+    }
+    localStorage.setItem('itd_import_token', itdToken);
+    setItdLoading(true);
+
+    try {
+      const res = await fetch('/api/admin?action=fetch_itd_post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ url: itdUrl, itdToken }),
+      });
+      const data = await res.json();
+      if (res.ok && data.post) {
+        const p = data.post;
+        if (p.screenshot) initCanvasWithImage(p.screenshot);
+        if (p.text) setPostText(p.text);
+
+        const match = authors.find(
+          (a) => (a.handle || '').toLowerCase() === (p.authorHandle || '').toLowerCase()
+        );
+        if (match) {
+          setSelectedAuthor(match);
+        } else if (p.authorHandle) {
+          const autoAuthor: Author = {
+            id: (p.authorHandle || '').replace('@', '').toLowerCase() || `author_${Date.now()}`,
+            name: p.authorName || p.authorHandle,
+            handle: p.authorHandle,
+            badge: 'Автор ИТД',
+            verified: true,
+            avatarColor: 'linear-gradient(135deg, #0288d1, #26c6da)',
+            avatarText: (p.authorName || 'A')[0],
+          };
+          setSelectedAuthor(autoAuthor);
+        }
+      } else {
+        alert(data.error || 'Не удалось импортировать пост');
+      }
+    } catch {
+      alert('Ошибка при импорте из ИТД');
+    } finally {
+      setItdLoading(false);
+    }
+  };
+
+  const handleSavePost = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    const finalScreenshot = canvas ? canvas.toDataURL('image/jpeg', 0.9) : screenshotData;
+
+    if (!finalScreenshot) {
+      alert('Загрузите скриншот поста');
+      return;
+    }
+    if (!selectedAuthor) {
+      alert('Выберите автора поста');
+      return;
+    }
+
+    setIsSavingPost(true);
+    soundFx.playClick();
+
+    const tagList = postTags
+      .split(',')
+      .map((t) => t.trim())
+      .filter(Boolean);
+
+    const postPayload = {
+      id: `post_${Date.now()}`,
+      correctAuthorId: selectedAuthor.id,
+      postText: postText.trim(),
+      screenshot: finalScreenshot,
+      hint: postHint.trim(),
+      difficulty: postDiff,
+      tags: tagList.length > 0 ? tagList : ['#итд'],
+    };
+
+    try {
+      const res = await fetch('/api/admin?action=save_post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ post: postPayload }),
+      });
+      if (res.ok) {
+        alert('Пост успешно добавлен в базу викторины!');
+        setScreenshotData(null);
+        setSelectedAuthor(null);
+        setPostText('');
+        setPostHint('');
+        setPostTags('');
+        setItdUrl('');
+        loadAdminData(token!);
+      } else {
+        const d = await res.json().catch(() => ({}));
+        alert(d.error || 'Ошибка при сохранении поста');
+      }
+    } catch {
+      alert('Ошибка соединения');
+    } finally {
+      setIsSavingPost(false);
     }
   };
 
   const handleDeletePost = async (id: string) => {
-    if (!token || !window.confirm('Удалить этот пост?')) return;
+    if (!window.confirm('Удалить этот вопрос?')) return;
     soundFx.playClick();
     try {
       const res = await fetch('/api/admin?action=delete_post', {
@@ -121,19 +362,35 @@ export function AdminView() {
     } catch {}
   };
 
-  const handleSaveAuthor = async (e: React.FormEvent) => {
+  const handleModerateSuggestion = async (id: string, status: 'approved' | 'rejected', postRecord?: any) => {
+    soundFx.playClick();
+    try {
+      const res = await fetch('/api/admin?action=moderate_post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, status, postRecord }),
+      });
+      if (res.ok) {
+        setSuggestions((prev) => prev.filter((s) => s.id !== id));
+        if (status === 'approved') loadAdminData(token!);
+      }
+    } catch {}
+  };
+
+  const handleSaveAuthorModal = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !newAuthorName.trim()) return;
+    if (!newAuthorName.trim()) return;
     soundFx.playClick();
 
-    const authorPayload = {
+    const authorPayload: Author = {
       id: newAuthorHandle.replace('@', '').toLowerCase() || `author_${Date.now()}`,
       name: newAuthorName.trim(),
       handle: newAuthorHandle.startsWith('@') ? newAuthorHandle : `@${newAuthorHandle}`,
+      badge: newAuthorBadge.trim() || null,
       avatarColor: newAuthorColor,
       avatarText: newAuthorName.trim()[0] || '?',
-      bio: newAuthorBio.trim(),
-      verified: true,
+      bio: newAuthorBio.trim() || null,
+      verified: newAuthorVerified,
     };
 
     try {
@@ -143,16 +400,18 @@ export function AdminView() {
         body: JSON.stringify({ author: authorPayload }),
       });
       if (res.ok) {
-        setAuthors((prev) => [...prev, authorPayload]);
+        setShowNewAuthorModal(false);
         setNewAuthorName('');
         setNewAuthorHandle('');
+        setNewAuthorBadge('');
         setNewAuthorBio('');
+        loadAdminData(token!);
       }
     } catch {}
   };
 
   const handleDeleteAuthor = async (id: string) => {
-    if (!token || !window.confirm('Удалить автора?')) return;
+    if (!window.confirm('Удалить автора?')) return;
     soundFx.playClick();
     try {
       const res = await fetch('/api/admin?action=delete_author', {
@@ -166,100 +425,9 @@ export function AdminView() {
     } catch {}
   };
 
-  const handleModerateSuggestion = async (id: string, status: 'approved' | 'rejected', postRecord?: any) => {
-    if (!token) return;
-    soundFx.playClick();
-    try {
-      const res = await fetch('/api/admin?action=moderate_post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ id, status, postRecord }),
-      });
-      if (res.ok) {
-        setSuggestions((prev) => prev.filter((s) => s.id !== id));
-        if (status === 'approved') loadAdminData(token);
-      }
-    } catch {}
-  };
-
-  const handleFetchItd = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token || !itdUrl) return;
-    setItdLoading(true);
-    setItdResult(null);
-    soundFx.playClick();
-
-    try {
-      const res = await fetch('/api/admin?action=fetch_itd_post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ url: itdUrl, itdToken }),
-      });
-      const data = await res.json();
-      if (res.ok && data.post) {
-        setItdResult(data.post);
-      } else {
-        alert(data.error || 'Ошибка загрузки поста из ИТД');
-      }
-    } catch {
-      alert('Ошибка соединения');
-    } finally {
-      setItdLoading(false);
-    }
-  };
-
-  const handleSaveItdPost = async () => {
-    if (!token || !itdResult) return;
-    soundFx.playClick();
-
-    let targetAuthor = authors.find(
-      (a) => (a.handle || '').toLowerCase() === (itdResult.authorHandle || '').toLowerCase()
-    );
-
-    if (!targetAuthor) {
-      targetAuthor = {
-        id: (itdResult.authorHandle || '').replace('@', '').toLowerCase() || `author_${Date.now()}`,
-        name: itdResult.authorName || 'Автор ИТД',
-        handle: itdResult.authorHandle || '@itd_user',
-        avatarColor: 'linear-gradient(135deg, #0288d1, #26c6da)',
-        avatarText: (itdResult.authorName || 'A')[0],
-        verified: true,
-      };
-      await fetch('/api/admin?action=save_author', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ author: targetAuthor }),
-      });
-    }
-
-    const postRecord = {
-      id: `post_${Date.now()}`,
-      correctAuthorId: targetAuthor.id,
-      postText: itdResult.text || '',
-      screenshot: itdResult.screenshot,
-      hint: '',
-      difficulty: 'normal',
-      tags: ['#итд'],
-    };
-
-    try {
-      const res = await fetch('/api/admin?action=save_post', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ post: postRecord }),
-      });
-      if (res.ok) {
-        alert('Пост успешно добавлен в базу викторины!');
-        setItdResult(null);
-        setItdUrl('');
-        loadAdminData(token);
-      }
-    } catch {}
-  };
-
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!token || !newPassword.trim()) return;
+    if (!newPassword.trim()) return;
     soundFx.playClick();
     setPasswordMsg('');
 
@@ -287,204 +455,496 @@ export function AdminView() {
 
   if (!token) {
     return (
-      <div className="max-w-md mx-auto my-12 p-8 rounded-3xl bg-[#121218] border border-white/10 shadow-2xl space-y-6 animate-in fade-in">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-2xl bg-[#0080ff]/15 text-[#0080ff] flex items-center justify-center mx-auto mb-3">
-            <Lock size={24} />
-          </div>
-          <h2 className="font-heading font-extrabold text-2xl text-white">Вход в панель управления</h2>
-          <p className="text-xs text-white/50">Доступ только для администраторов викторины</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-white/70 uppercase mb-2">Пароль</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Введите пароль..."
-              className="w-full bg-[#181822] border border-white/15 focus:border-[#0080ff] rounded-xl px-4 py-3 text-white text-sm outline-none"
-            />
-          </div>
-
-          {loginError && <p className="text-xs text-[#ef4444] font-medium">{loginError}</p>}
-
-          <button
-            type="submit"
-            disabled={isLoggingIn}
-            className="w-full py-3.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white font-semibold text-sm transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isLoggingIn ? 'Проверка...' : 'Войти'}
+      <div className="modal-backdrop" id="modal-admin-pin" style={{ display: 'flex' }}>
+        <div className="modal-card">
+          <button className="modal-close-btn" id="btn-close-pin-modal" onClick={onGoHome}>
+            ✕
           </button>
-        </form>
+          <h2 className="modal-title">Вход в панель управления</h2>
+          <p className="modal-subtitle">Введите пароль администратора для доступа</p>
+          <form id="form-admin-pin" onSubmit={handleLogin}>
+            <div className="form-group" style={{ marginBottom: 16 }}>
+              <input
+                type="password"
+                id="admin-pin-input"
+                placeholder="••••••••"
+                autoFocus
+                style={{ textAlign: 'center', fontSize: 18, letterSpacing: 2 }}
+                value={pinPassword}
+                onChange={(e) => setPinPassword(e.target.value)}
+              />
+            </div>
+            {loginError && (
+              <div style={{ color: 'var(--accent-danger)', fontSize: 12, textAlign: 'center', marginBottom: 12 }}>
+                {loginError}
+              </div>
+            )}
+            <button
+              type="submit"
+              className="btn-primary-action"
+              style={{ width: '100%', justifyContent: 'center' }}
+              disabled={isLoggingIn}
+            >
+              {isLoggingIn ? 'Проверка...' : 'Войти'}
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
 
+  const filteredPosts = posts.filter((p) => {
+    const q = postsSearch.toLowerCase();
+    const a = authors.find((auth) => auth.id === p.correct_author_id);
+    return (
+      (p.post_text || '').toLowerCase().includes(q) ||
+      (p.hint || '').toLowerCase().includes(q) ||
+      (a?.name || '').toLowerCase().includes(q) ||
+      (a?.handle || '').toLowerCase().includes(q)
+    );
+  });
+
+  const totalPostsPages = Math.max(1, Math.ceil(filteredPosts.length / postsPerPage));
+  const paginatedPosts = filteredPosts.slice(
+    (postsPage - 1) * postsPerPage,
+    postsPage * postsPerPage
+  );
+
+  const filteredAuthors = authors.filter((a) => {
+    const q = authorsSearch.toLowerCase();
+    return (
+      (a.name || '').toLowerCase().includes(q) ||
+      (a.handle || '').toLowerCase().includes(q)
+    );
+  });
+
+  const totalAuthorsPages = Math.max(1, Math.ceil(filteredAuthors.length / authorsPerPage));
+  const paginatedAuthors = filteredAuthors.slice(
+    (authorsPage - 1) * authorsPerPage,
+    authorsPage * authorsPerPage
+  );
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 rounded-2xl bg-[#121218] border border-white/10">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-[#0080ff]/10 text-[#0080ff]">
-            <Shield size={22} />
-          </div>
-          <div>
-            <h2 className="font-heading font-bold text-lg text-white">Панель управления</h2>
-            <p className="text-xs text-white/50">Управление контентом, авторами и модерация</p>
-          </div>
+    <section className="app-view">
+      <div className="admin-header-row">
+        <div>
+          <h1 className="admin-page-title">Панель управления викториной</h1>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>ИТД · Кто автор?</span>
         </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadAdminData(token)}
-            disabled={loadingData}
-            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 hover:text-white transition-all cursor-pointer"
-            title="Обновить данные"
-          >
-            <RefreshCw size={16} className={loadingData ? 'animate-spin' : ''} />
-          </button>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#ef4444]/15 hover:bg-[#ef4444]/25 text-[#ef4444] border border-[#ef4444]/30 text-xs font-semibold transition-all cursor-pointer"
-          >
-            <LogOut size={14} />
-            <span>Выйти</span>
-          </button>
+        <div className="admin-header-actions">
+          <span className="admin-badge-count">{posts.length} вопросов</span>
+          <span className="admin-badge-count">{authors.length} авторов</span>
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-white/10 pb-2 overflow-x-auto">
-        {[
-          { id: 'posts', label: `Посты (${posts.length})` },
-          { id: 'authors', label: `Авторы (${authors.length})` },
-          { id: 'suggestions', label: `Заявки (${suggestions.length})` },
-          { id: 'itd', label: 'Импорт из ИТД' },
-          { id: 'password', label: 'Безопасность' },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => {
-              soundFx.playClick();
-              setActiveTab(tab.id as any);
-            }}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap cursor-pointer ${
-              activeTab === tab.id
-                ? 'bg-[#0080ff] text-white'
-                : 'text-white/60 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === 'posts' && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {posts.map((p) => {
-              const author = authors.find((a) => a.id === p.correct_author_id);
-              return (
-                <div key={p.id} className="p-4 rounded-2xl bg-[#121218] border border-white/10 space-y-3 flex flex-col justify-between">
-                  <div className="space-y-2">
-                    {p.screenshot && (
-                      <div className="h-32 rounded-lg overflow-hidden bg-black/50 border border-white/5 flex items-center justify-center">
-                        <img src={p.screenshot} alt="Превью" className="max-h-full object-contain" />
-                      </div>
-                    )}
-                    <p className="text-xs text-white/80 line-clamp-2">{p.post_text || 'Скриншот поста'}</p>
-                    <div className="text-[11px] text-white/40">
-                      Автор: <span className="text-[#0080ff] font-semibold">{author?.name || p.correct_author_id}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeletePost(p.id)}
-                    className="w-full py-1.5 rounded-lg bg-[#ef4444]/15 hover:bg-[#ef4444]/25 text-[#ef4444] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                  >
-                    <Trash2 size={13} />
-                    <span>Удалить пост</span>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+      <div className="admin-card">
+        <div className="admin-card-title">
+          <span>Создать новый вопрос викторины</span>
         </div>
-      )}
 
-      {activeTab === 'authors' && (
-        <div className="space-y-6">
-          <form onSubmit={handleSaveAuthor} className="p-5 rounded-2xl bg-[#121218] border border-white/10 space-y-4">
-            <h3 className="font-heading font-semibold text-sm text-white">Добавить нового автора</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <input
-                type="text"
-                placeholder="Имя автора..."
-                value={newAuthorName}
-                onChange={(e) => setNewAuthorName(e.target.value)}
-                className="bg-[#181822] border border-white/15 rounded-xl px-3 py-2 text-xs text-white outline-none"
-              />
-              <input
-                type="text"
-                placeholder="@handle автора..."
-                value={newAuthorHandle}
-                onChange={(e) => setNewAuthorHandle(e.target.value)}
-                className="bg-[#181822] border border-white/15 rounded-xl px-3 py-2 text-xs text-white outline-none"
-              />
-              <input
-                type="text"
-                placeholder="Био / описание..."
-                value={newAuthorBio}
-                onChange={(e) => setNewAuthorBio(e.target.value)}
-                className="bg-[#181822] border border-white/15 rounded-xl px-3 py-2 text-xs text-white outline-none"
-              />
-            </div>
+        <div className="form-group" style={{ marginBottom: 14 }}>
+          <label className="form-label" htmlFor="admin-itd-url">
+            Вставить ссылку на пост в ИТД (автозаполнение)
+          </label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <input
+              type="url"
+              id="admin-itd-url"
+              style={{ flex: 1, minWidth: 220 }}
+              placeholder="https://итд.com/@автор/post/..."
+              autoComplete="off"
+              value={itdUrl}
+              onChange={(e) => setItdUrl(e.target.value)}
+            />
             <button
-              type="submit"
-              className="px-4 py-2 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white text-xs font-semibold transition-all cursor-pointer"
+              type="button"
+              className="btn-small-tool"
+              id="btn-itd-import"
+              onClick={handleItdImport}
+              disabled={itdLoading}
             >
-              Сохранить автора
+              {itdLoading ? 'Загрузка...' : 'Заполнить по ссылке'}
             </button>
-          </form>
+          </div>
+          <input
+            type="password"
+            id="admin-itd-token"
+            style={{ marginTop: 8 }}
+            placeholder="Токен авторизации ИТД (хранится только в этом браузере)"
+            autoComplete="off"
+            value={itdToken}
+            onChange={(e) => setItdToken(e.target.value)}
+          />
+        </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {authors.map((a) => (
-              <div key={a.id} className="p-3.5 rounded-xl bg-[#121218] border border-white/10 flex items-center justify-between">
-                <div>
-                  <strong className="text-xs text-white font-semibold block">{a.name}</strong>
-                  <span className="text-[11px] text-white/40">{a.handle}</span>
-                </div>
+        {!screenshotData ? (
+          <div
+            className="upload-dropzone"
+            id="admin-dropzone"
+            onClick={() => document.getElementById('admin-file-input')?.click()}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0]);
+            }}
+          >
+            <div className="upload-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+            </div>
+            <div className="upload-main-text">Нажмите для выбора файла или перетащите скриншот</div>
+            <div className="upload-sub-text">PNG, JPG, WebP</div>
+            <div className="clipboard-badge">Вставка через Ctrl + V из буфера обмена</div>
+          </div>
+        ) : (
+          <div className="censor-preview-wrapper" id="admin-preview-container">
+            <div className="censor-toolbar">
+              <div className="censor-tools-group">
+                <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: 12 }}>Инструмент:</span>
+                <label className="censor-tool-label">
+                  <input
+                    type="radio"
+                    name="censor-tool"
+                    value="blackout"
+                    checked={censorTool === 'blackout'}
+                    onChange={() => setCensorTool('blackout')}
+                  />
+                  <span>Замазать ник (плашка)</span>
+                </label>
+                <label className="censor-tool-label">
+                  <input
+                    type="radio"
+                    name="censor-tool"
+                    value="blur"
+                    checked={censorTool === 'blur'}
+                    onChange={() => setCensorTool('blur')}
+                  />
+                  <span>Размытие</span>
+                </label>
+              </div>
+              <div className="censor-actions-group">
                 <button
-                  onClick={() => handleDeleteAuthor(a.id)}
-                  className="p-1.5 rounded-lg text-white/40 hover:text-[#ef4444] transition-colors cursor-pointer"
+                  type="button"
+                  className="btn-small-tool"
+                  id="btn-undo-censor"
+                  onClick={handleUndoCensor}
                 >
-                  <Trash2 size={15} />
+                  Отменить
+                </button>
+                <button
+                  type="button"
+                  className="btn-small-tool"
+                  id="btn-change-screenshot"
+                  onClick={() => setScreenshotData(null)}
+                >
+                  Заменить картинку
                 </button>
               </div>
-            ))}
+            </div>
+
+            <div className="canvas-container" title="Выделите область с ником автора, чтобы скрыть его">
+              <canvas
+                id="censor-canvas"
+                ref={canvasRef}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseUp={handleCanvasMouseUp}
+              ></canvas>
+            </div>
+          </div>
+        )}
+
+        <input
+          type="file"
+          id="admin-file-input"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files?.[0]) handleFile(e.target.files[0]);
+          }}
+        />
+
+        <form id="admin-post-form" onSubmit={handleSavePost}>
+          <div className="form-grid">
+            <div className="form-group col-span-2">
+              <label className="form-label">Правильный автор поста * (поиск по имени или нику)</label>
+              <div className="author-search-dropdown-wrapper">
+                {!selectedAuthor ? (
+                  <>
+                    <input
+                      type="text"
+                      id="admin-post-author-search"
+                      placeholder="Начните вводить имя или @handle автора..."
+                      autoComplete="off"
+                      value={authorSearch}
+                      onChange={(e) => {
+                        setAuthorSearch(e.target.value);
+                        setShowAuthorDropdown(true);
+                      }}
+                      onFocus={() => setShowAuthorDropdown(true)}
+                    />
+                    {showAuthorDropdown && authorSearch && (
+                      <div className="author-suggestions-dropdown" id="admin-author-suggestions">
+                        {authors
+                          .filter((a) => {
+                            const q = authorSearch.toLowerCase();
+                            return (
+                              (a.name || '').toLowerCase().includes(q) ||
+                              (a.handle || '').toLowerCase().includes(q)
+                            );
+                          })
+                          .slice(0, 8)
+                          .map((a) => (
+                            <div
+                              key={a.id}
+                              className="author-suggestion-item"
+                              onClick={() => {
+                                setSelectedAuthor(a);
+                                setShowAuthorDropdown(false);
+                                setAuthorSearch('');
+                              }}
+                            >
+                              <div
+                                className="asi-avatar"
+                                style={{ background: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
+                              >
+                                {a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?')}
+                              </div>
+                              <div className="asi-meta">
+                                <div className="asi-name">{a.name}</div>
+                                <div className="asi-handle">{a.handle}</div>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="selected-author-pill">
+                    <div
+                      className="sap-avatar"
+                      style={{ background: selectedAuthor.avatar_color || selectedAuthor.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
+                    >
+                      {selectedAuthor.avatar_text || selectedAuthor.avatarText || (selectedAuthor.name ? selectedAuthor.name[0] : '?')}
+                    </div>
+                    <span className="sap-name">{selectedAuthor.name}</span>
+                    <span className="sap-handle">{selectedAuthor.handle}</span>
+                    <button
+                      type="button"
+                      className="sap-remove-btn"
+                      onClick={() => setSelectedAuthor(null)}
+                      title="Удалить выбор"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="form-group col-span-2">
+              <label className="form-label" htmlFor="admin-post-text">Текст поста (необязательно, для поиска)</label>
+              <textarea
+                id="admin-post-text"
+                rows={2}
+                placeholder="Краткое содержание или цитата из поста..."
+                value={postText}
+                onChange={(e) => setPostText(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="admin-post-hint">Подсказка для игроков</label>
+              <input
+                type="text"
+                id="admin-post-hint"
+                placeholder="Например: Автор часто пишет про деплой в пятницу"
+                value={postHint}
+                onChange={(e) => setPostHint(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="admin-post-tags">Теги (через запятую)</label>
+              <input
+                type="text"
+                id="admin-post-tags"
+                placeholder="#итд, #щитпост, #жиза"
+                value={postTags}
+                onChange={(e) => setPostTags(e.target.value)}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="admin-post-diff">Сложность вопроса</label>
+              <select
+                id="admin-post-diff"
+                value={postDiff}
+                onChange={(e) => setPostDiff(e.target.value)}
+              >
+                <option value="easy">Легкая (Узнаваемый стиль)</option>
+                <option value="normal">Средняя (Для знатоков)</option>
+                <option value="hard">Хардкор (Редкий пост)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-actions-row">
+            <button
+              type="button"
+              className="btn-secondary-action"
+              id="btn-admin-reset-form"
+              onClick={() => {
+                setScreenshotData(null);
+                setSelectedAuthor(null);
+                setPostText('');
+                setPostHint('');
+                setPostTags('');
+              }}
+            >
+              Очистить
+            </button>
+            <button
+              type="submit"
+              className="btn-primary-action"
+              id="btn-admin-submit"
+              disabled={isSavingPost}
+            >
+              {isSavingPost ? 'Сохранение...' : 'Добавить в викторину'}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <div className="admin-card">
+        <div className="admin-card-title">
+          <span>Вопросы в базе</span>
+        </div>
+
+        <div className="admin-filter-bar">
+          <input
+            type="text"
+            id="admin-posts-search-input"
+            className="search-input"
+            placeholder="Поиск вопросов по автору, тексту или подсказке..."
+            value={postsSearch}
+            onChange={(e) => {
+              setPostsSearch(e.target.value);
+              setPostsPage(1);
+            }}
+          />
+        </div>
+
+        <div className="table-responsive admin-table-scroll-container">
+          <table className="admin-posts-table">
+            <thead>
+              <tr>
+                <th style={{ width: 60 }}>Превью</th>
+                <th>Правильный автор</th>
+                <th>Текст поста</th>
+                <th style={{ width: 80, textAlign: 'right' }}>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedPosts.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="table-empty">Вопросы не найдены</td>
+                </tr>
+              ) : (
+                paginatedPosts.map((p) => {
+                  const author = authors.find((a) => a.id === p.correct_author_id);
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        {p.screenshot && (
+                          <img src={p.screenshot} alt="Превью" className="post-table-thumb" />
+                        )}
+                      </td>
+                      <td>
+                        <div className="table-author-cell">
+                          <strong>{author?.name || p.correct_author_id}</strong>
+                          <small>{author?.handle || ''}</small>
+                        </div>
+                      </td>
+                      <td>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                          {p.post_text || 'Скриншот поста'}
+                        </span>
+                      </td>
+                      <td style={{ textAlign: 'right' }} className="col-actions">
+                        <button
+                          type="button"
+                          className="btn-action-icon"
+                          title="Удалить"
+                          onClick={() => handleDeletePost(p.id)}
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="admin-pagination-bar" id="admin-posts-pagination">
+          <div className="admin-pagination-info" id="admin-posts-page-info">
+            {filteredPosts.length > 0
+              ? `Показано ${(postsPage - 1) * postsPerPage + 1}-${Math.min(postsPage * postsPerPage, filteredPosts.length)} из ${filteredPosts.length} постов`
+              : '0 постов'}
+          </div>
+          <div className="admin-pagination-controls">
+            <button
+              type="button"
+              className="btn-page-nav"
+              disabled={postsPage <= 1}
+              onClick={() => setPostsPage((p) => Math.max(1, p - 1))}
+            >
+              ← Назад
+            </button>
+            <span className="admin-page-number">
+              {postsPage} / {totalPostsPages}
+            </span>
+            <button
+              type="button"
+              className="btn-page-nav"
+              disabled={postsPage >= totalPostsPages}
+              onClick={() => setPostsPage((p) => Math.min(totalPostsPages, p + 1))}
+            >
+              Вперед →
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {activeTab === 'suggestions' && (
-        <div className="space-y-4">
-          {suggestions.length === 0 ? (
-            <div className="p-12 text-center text-white/40 text-sm">Новых предложений нет</div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {suggestions.map((s) => (
-                <div key={s.id} className="p-4 rounded-2xl bg-[#121218] border border-white/10 space-y-3">
-                  {s.screenshot && (
-                    <div className="h-44 rounded-xl overflow-hidden bg-black/60 flex items-center justify-center">
-                      <img src={s.screenshot} alt="Скриншот" className="max-h-full object-contain" />
-                    </div>
-                  )}
-                  <p className="text-xs text-white/70">{s.post_text || 'Без текста'}</p>
-                  <div className="text-[11px] text-white/40 space-y-0.5">
-                    <div>Автор: <span className="text-white font-medium">{s.author_name}</span></div>
-                    <div>Отправил: <span className="text-white/60">{s.submitted_by}</span></div>
-                  </div>
-                  <div className="flex gap-2 pt-2">
+      <div className="admin-card">
+        <div className="admin-card-title">
+          <span>Заявки на посты ({suggestions.length})</span>
+        </div>
+
+        {suggestions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+            Новых предложений нет
+          </div>
+        ) : (
+          <div className="admin-suggestions-container">
+            {suggestions.map((s) => (
+              <div key={s.id} className="admin-suggestion-card">
+                {s.screenshot && (
+                  <img src={s.screenshot} alt="Скриншот" className="asc-thumb" />
+                )}
+                <div className="asc-info">
+                  <div className="asc-author-line">Автор: {s.author_name}</div>
+                  <div className="asc-meta-line">Предложил: {s.submitted_by}</div>
+                  <div className="asc-comment">{s.post_text || 'Без описания'}</div>
+                  <div className="asc-actions">
                     <button
+                      type="button"
+                      className="btn-approve"
                       onClick={() =>
                         handleModerateSuggestion(s.id, 'approved', {
                           correctAuthorId: s.author_id || s.author_name,
@@ -492,115 +952,225 @@ export function AdminView() {
                           postText: s.post_text,
                         })
                       }
-                      className="flex-1 py-2 rounded-xl bg-[#00ba7c]/15 hover:bg-[#00ba7c]/25 text-[#00ba7c] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <Check size={14} />
-                      <span>Одобрить</span>
+                      Одобрить в базу
                     </button>
                     <button
+                      type="button"
+                      className="btn-reject"
                       onClick={() => handleModerateSuggestion(s.id, 'rejected')}
-                      className="flex-1 py-2 rounded-xl bg-[#ef4444]/15 hover:bg-[#ef4444]/25 text-[#ef4444] text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                     >
-                      <X size={14} />
-                      <span>Отклонить</span>
+                      Отклонить
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {activeTab === 'itd' && (
-        <div className="p-6 rounded-2xl bg-[#121218] border border-white/10 space-y-5 max-w-xl">
-          <div className="space-y-1">
-            <h3 className="font-heading font-bold text-base text-white">Парсинг поста из соцсети ИТД</h3>
-            <p className="text-xs text-white/50">Вставьте ссылку на пост и токен авторизации ИТД для авто-загрузки</p>
-          </div>
-
-          <form onSubmit={handleFetchItd} className="space-y-3">
-            <div>
-              <label className="block text-xs font-semibold text-white/60 uppercase mb-1">Ссылка на пост</label>
-              <input
-                type="text"
-                value={itdUrl}
-                onChange={(e) => setItdUrl(e.target.value)}
-                placeholder="https://итд.com/@автор/post/00000000-0000-0000-0000-000000000000"
-                className="w-full bg-[#181822] border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-white/60 uppercase mb-1">Токен авторизации ИТД</label>
-              <input
-                type="text"
-                value={itdToken}
-                onChange={(e) => setItdToken(e.target.value)}
-                placeholder="Токен авторизации ИТД..."
-                className="w-full bg-[#181822] border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white outline-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={itdLoading}
-              className="px-5 py-2.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white text-xs font-semibold transition-all cursor-pointer disabled:opacity-50"
-            >
-              {itdLoading ? 'Загрузка из ИТД...' : 'Получить пост'}
-            </button>
-          </form>
-
-          {itdResult && (
-            <div className="p-4 rounded-xl bg-[#181822] border border-white/10 space-y-3 animate-in fade-in">
-              <div className="text-xs space-y-1">
-                <div>Автор: <strong className="text-white">{itdResult.authorName}</strong> ({itdResult.authorHandle})</div>
-                <div>Текст: <span className="text-white/70">{itdResult.text}</span></div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
 
-              {itdResult.screenshot && (
-                <div className="h-40 rounded-lg overflow-hidden bg-black/50 flex items-center justify-center">
-                  <img src={itdResult.screenshot} alt="Скриншот поста" className="max-h-full object-contain" />
-                </div>
-              )}
+      <div className="admin-card">
+        <div className="admin-card-title">
+          <span>Пул авторов ИТД</span>
+          <button
+            type="button"
+            className="btn-primary-action"
+            style={{ fontSize: 12, padding: '6px 16px' }}
+            onClick={() => setShowNewAuthorModal(true)}
+          >
+            + Добавить автора
+          </button>
+        </div>
 
-              <button
-                type="button"
-                onClick={handleSaveItdPost}
-                className="w-full py-2.5 rounded-xl bg-[#00ba7c] hover:bg-[#00a86b] text-white text-xs font-semibold transition-all cursor-pointer"
+        <div className="admin-filter-bar">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Поиск авторов по имени или @handle..."
+            value={authorsSearch}
+            onChange={(e) => {
+              setAuthorsSearch(e.target.value);
+              setAuthorsPage(1);
+            }}
+          />
+        </div>
+
+        <div className="admin-authors-list admin-authors-scroll-container">
+          {paginatedAuthors.map((a) => (
+            <div key={a.id} className="admin-author-item">
+              <div
+                className="aai-avatar"
+                style={{ background: a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)' }}
               >
-                Добавить пост в базу викторины
-              </button>
+                {a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?')}
+              </div>
+              <div className="aai-info">
+                <div className="aai-name-row">
+                  <strong style={{ fontSize: 13, color: 'var(--text-primary)' }}>{a.name}</strong>
+                  {a.badge && <span className="badge-tag">{a.badge}</span>}
+                </div>
+                <span className="aai-handle">{a.handle}</span>
+                {a.bio && <div className="aai-bio">{a.bio}</div>}
+              </div>
+              <div className="aai-actions">
+                <button
+                  type="button"
+                  className="btn-del-author"
+                  onClick={() => handleDeleteAuthor(a.id)}
+                  title="Удалить автора"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="admin-pagination-bar" id="admin-authors-pagination">
+          <div className="admin-pagination-info" id="admin-authors-page-info">
+            {filteredAuthors.length} авторов
+          </div>
+          <div className="admin-pagination-controls">
+            <button
+              type="button"
+              className="btn-page-nav"
+              disabled={authorsPage <= 1}
+              onClick={() => setAuthorsPage((p) => Math.max(1, p - 1))}
+            >
+              ← Назад
+            </button>
+            <span className="admin-page-number">
+              {authorsPage} / {totalAuthorsPages}
+            </span>
+            <button
+              type="button"
+              className="btn-page-nav"
+              disabled={authorsPage >= totalAuthorsPages}
+              onClick={() => setAuthorsPage((p) => Math.min(totalAuthorsPages, p + 1))}
+            >
+              Вперед →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="admin-card">
+        <div className="admin-card-title">
+          <span>Безопасность панели управления</span>
+        </div>
+        <form id="form-change-admin-password" style={{ maxWidth: 420 }} onSubmit={handleChangePassword}>
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label" htmlFor="new-admin-password-input">
+              Новый пароль администратора
+            </label>
+            <input
+              type="password"
+              id="new-admin-password-input"
+              placeholder="Введите новый надежный пароль..."
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </div>
+          {passwordMsg && (
+            <div style={{ color: 'var(--accent-green)', fontSize: 12, marginBottom: 8 }}>
+              {passwordMsg}
             </div>
           )}
-        </div>
-      )}
-
-      {activeTab === 'password' && (
-        <form onSubmit={handleChangePassword} className="p-6 rounded-2xl bg-[#121218] border border-white/10 space-y-4 max-w-md">
-          <div className="space-y-1">
-            <h3 className="font-heading font-bold text-base text-white">Смена пароля администратора</h3>
-            <p className="text-xs text-white/50">Установите новый надежный пароль</p>
-          </div>
-
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="Новый пароль..."
-            className="w-full bg-[#181822] border border-white/15 rounded-xl px-4 py-3 text-xs text-white outline-none"
-          />
-
-          {passwordMsg && <p className="text-xs font-semibold text-[#00ba7c]">{passwordMsg}</p>}
-
-          <button
-            type="submit"
-            className="px-5 py-2.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white text-xs font-semibold transition-all cursor-pointer"
-          >
+          <button type="submit" className="btn-primary-action" style={{ fontSize: 12, padding: '8px 16px' }}>
             Обновить пароль
           </button>
         </form>
+      </div>
+
+      <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: 12 }}>
+        <button type="button" className="btn-secondary-action" onClick={onGoHome}>
+          ← Вернуться на главную
+        </button>
+        <button type="button" className="btn-danger-outline" onClick={handleLogout}>
+          Выйти из панели управления
+        </button>
+      </div>
+
+      {showNewAuthorModal && (
+        <div className="modal-backdrop" id="modal-new-author" style={{ display: 'flex' }}>
+          <div className="modal-card" style={{ maxWidth: 480 }}>
+            <button className="modal-close-btn" onClick={() => setShowNewAuthorModal(false)}>
+              ✕
+            </button>
+            <h2 className="modal-title">Добавить автора в базу</h2>
+            <form id="form-add-author" onSubmit={handleSaveAuthorModal}>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label">Отображаемое имя *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Например: Шляпа Боярского"
+                  value={newAuthorName}
+                  onChange={(e) => setNewAuthorName(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label">Handle (@никнейм)</label>
+                <input
+                  type="text"
+                  placeholder="@shlyapa"
+                  value={newAuthorHandle}
+                  onChange={(e) => setNewAuthorHandle(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label">Бейдж / титул</label>
+                <input
+                  type="text"
+                  placeholder="Топ-автор, Dev, Основатель..."
+                  value={newAuthorBadge}
+                  onChange={(e) => setNewAuthorBadge(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label">Цвет аватара</label>
+                <select
+                  value={newAuthorColor}
+                  onChange={(e) => setNewAuthorColor(e.target.value)}
+                >
+                  <option value="linear-gradient(135deg, #0288d1, #26c6da)">Голубой неон</option>
+                  <option value="linear-gradient(135deg, #7c3aed, #ec4899)">Фиолетово-розовый</option>
+                  <option value="linear-gradient(135deg, #ef4444, #f97316)">Огненный</option>
+                  <option value="linear-gradient(135deg, #10b981, #06b6d4)">Изумрудный</option>
+                  <option value="linear-gradient(135deg, #f59e0b, #ef4444)">Янтарный</option>
+                  <option value="linear-gradient(135deg, #3b82f6, #8b5cf6)">Индиго</option>
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label">Стиль / био автора</label>
+                <textarea
+                  rows={2}
+                  placeholder="О чем обычно пишет этот автор..."
+                  value={newAuthorBio}
+                  onChange={(e) => setNewAuthorBio(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 20, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <input
+                  type="checkbox"
+                  id="verified-check"
+                  checked={newAuthorVerified}
+                  onChange={(e) => setNewAuthorVerified(e.target.checked)}
+                  style={{ width: 16, height: 16 }}
+                />
+                <label htmlFor="verified-check" style={{ fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                  Галочка верификации
+                </label>
+              </div>
+              <button type="submit" className="btn-primary-action" style={{ width: '100%', justifyContent: 'center' }}>
+                Сохранить автора
+              </button>
+            </form>
+          </div>
+        </div>
       )}
-    </div>
+    </section>
   );
 }

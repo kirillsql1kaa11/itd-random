@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { GameMode } from '@/types';
-import { Dice5, Play, PlusCircle, Users, Trophy, Flame, ShieldAlert, Sparkles } from 'lucide-react';
 import { generateRandomNickname } from '@/lib/utils';
 import { soundFx } from '@/lib/sound';
 
@@ -33,160 +32,164 @@ export function HomeView({
     onNicknameChange(newNick);
   };
 
-  const modes: Array<{ id: GameMode; title: string; desc: string; icon: any }> = [
-    { id: 'blitz', title: 'Блиц 10', desc: '10 постов на очки и время', icon: Flame },
-    { id: 'survival', title: 'Выживание', desc: '3 жизни до первой ошибки', icon: ShieldAlert },
-    { id: 'practice', title: 'Свободный', desc: 'Без таймера и штрафов', icon: Sparkles },
-  ];
-
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-b from-[#16161f] to-[#111116] border border-white/10 p-6 md:p-10 shadow-2xl">
-        <div className="max-w-2xl">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider bg-[#0080ff]/15 text-[#0080ff] border border-[#0080ff]/30 mb-4">
-            Викторина по соцсети ИТД
-          </span>
-
-          <h1 className="font-heading font-extrabold text-3xl md:text-5xl text-white tracking-tight leading-tight mb-4">
-            Угадай, кто написал пост
-          </h1>
-
-          <p className="text-white/60 text-sm md:text-base leading-relaxed mb-8">
-            Определяй авторов по скриншотам постов, стилю текста и юмору. Соревнуйся с другими скроллерами и поднимайся в таблице рекордов.
+    <section className="app-view">
+      <div className="home-hero-card">
+        <div className="home-hero-header">
+          <span className="home-hero-tag">Викторина по соцсети ИТД</span>
+          <h1 className="home-hero-title">Угадай, кто написал пост</h1>
+          <p className="home-hero-subtitle">
+            Определяй авторов по скриншотам постов, стилю текста и шуткам. Соревнуйся в рейтинге лучших скроллеров ИТД.
           </p>
+        </div>
 
-          <div className="space-y-6 bg-[#181822]/80 backdrop-blur border border-white/10 p-5 md:p-7 rounded-2xl">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label htmlFor="nick-input" className="text-xs font-semibold text-white/70 uppercase tracking-wider">
-                  Ваш игровой никнейм
-                </label>
-                <button
-                  type="button"
-                  onClick={handleRandomizeNick}
-                  className="flex items-center gap-1.5 text-xs text-[#0080ff] hover:text-[#3399ff] transition-colors cursor-pointer"
-                >
-                  <Dice5 size={14} />
-                  <span>Случайный ник</span>
-                </button>
-              </div>
-              <input
-                id="nick-input"
-                type="text"
-                value={nickname}
-                onChange={(e) => onNicknameChange(e.target.value)}
-                maxLength={24}
-                placeholder="Введите никнейм..."
-                className="w-full bg-[#101015] border border-white/15 focus:border-[#0080ff] focus:ring-2 focus:ring-[#0080ff]/20 rounded-xl px-4 py-3 text-white placeholder-white/30 text-base outline-none transition-all"
-              />
+        <div className="home-player-setup">
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <div className="nickname-label-row">
+              <label className="form-label" htmlFor="home-nickname-input" style={{ marginBottom: 0 }}>
+                Ваш игровой никнейм
+              </label>
+              <button
+                type="button"
+                className="btn-random-nick"
+                onClick={handleRandomizeNick}
+                title="Сгенерировать случайный ник"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <circle cx="15.5" cy="8.5" r="1.5"></circle>
+                  <circle cx="8.5" cy="15.5" r="1.5"></circle>
+                  <circle cx="15.5" cy="15.5" r="1.5"></circle>
+                  <circle cx="12" cy="12" r="1.5"></circle>
+                </svg>
+                <span>Случайный ник</span>
+              </button>
             </div>
-
-            <div>
-              <span className="block text-xs font-semibold text-white/70 uppercase tracking-wider mb-2.5">
-                Режим игры
-              </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {modes.map((m) => {
-                  const Icon = m.icon;
-                  const isSelected = selectedMode === m.id;
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => {
-                        soundFx.playClick();
-                        onModeChange(m.id);
-                      }}
-                      className={`text-left p-3.5 rounded-xl border transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-[#0080ff]/15 border-[#0080ff] shadow-[0_0_15px_rgba(0,128,255,0.25)]'
-                          : 'bg-[#101015] border-white/10 hover:border-white/20 text-white/70 hover:text-white'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Icon size={16} className={isSelected ? 'text-[#0080ff]' : 'text-white/50'} />
-                        <strong className="text-sm font-semibold text-white">{m.title}</strong>
-                      </div>
-                      <p className="text-[11px] text-white/50 leading-tight">{m.desc}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                soundFx.playClick();
-                onStartGame();
-              }}
-              className="w-full py-4 rounded-xl bg-gradient-to-r from-[#0080ff] to-[#0066cc] hover:from-[#1a8cff] hover:to-[#0073e6] text-white font-heading font-bold text-base md:text-lg tracking-wide shadow-[0_0_25px_rgba(0,128,255,0.4)] hover:shadow-[0_0_35px_rgba(0,128,255,0.6)] transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Play size={20} fill="currentColor" />
-              <span>Начать игру</span>
-            </button>
+            <input
+              type="text"
+              id="home-nickname-input"
+              className="input-large"
+              placeholder="Введите никнейм..."
+              maxLength={24}
+              value={nickname}
+              onChange={(e) => onNicknameChange(e.target.value)}
+            />
           </div>
+
+          <div className="home-mode-selection">
+            <span className="form-label" style={{ display: 'block', marginBottom: 8 }}>
+              Выберите режим:
+            </span>
+            <div className="home-mode-pills">
+              <button
+                type="button"
+                className={`btn-home-mode ${selectedMode === 'blitz' ? 'active' : ''}`}
+                onClick={() => {
+                  soundFx.playClick();
+                  onModeChange('blitz');
+                }}
+              >
+                <strong>Блиц 10</strong>
+                <small>10 постов на очки</small>
+              </button>
+              <button
+                type="button"
+                className={`btn-home-mode ${selectedMode === 'survival' ? 'active' : ''}`}
+                onClick={() => {
+                  soundFx.playClick();
+                  onModeChange('survival');
+                }}
+              >
+                <strong>Выживание</strong>
+                <small>3 жизни, до первой ошибки</small>
+              </button>
+              <button
+                type="button"
+                className={`btn-home-mode ${selectedMode === 'practice' ? 'active' : ''}`}
+                onClick={() => {
+                  soundFx.playClick();
+                  onModeChange('practice');
+                }}
+              >
+                <strong>Свободный</strong>
+                <small>Без таймера и жизней</small>
+              </button>
+            </div>
+          </div>
+
+          <button
+            className="btn-hero-play"
+            type="button"
+            onClick={() => {
+              soundFx.playClick();
+              onStartGame();
+            }}
+          >
+            Начать игру
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <button
-          type="button"
+      <div className="home-actions-grid">
+        <div
+          className="home-action-box"
           onClick={() => {
             soundFx.playClick();
             onOpenSuggestPost();
           }}
-          className="text-left p-5 rounded-2xl bg-[#121217] border border-white/10 hover:border-white/25 hover:bg-[#16161e] transition-all cursor-pointer flex items-start gap-4 group"
         >
-          <div className="p-3 rounded-xl bg-[#0080ff]/10 text-[#0080ff] group-hover:scale-105 transition-transform">
-            <PlusCircle size={24} />
+          <div className="hab-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
           </div>
-          <div>
-            <strong className="block text-white font-semibold text-base mb-1">Предложить пост</strong>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Загрузите скриншот любимого поста ИТД для добавления в викторину
-            </p>
+          <div className="hab-info">
+            <strong>Предложить пост</strong>
+            <p>Загрузите скриншот любимого поста для викторины</p>
           </div>
-        </button>
+        </div>
 
-        <button
-          type="button"
+        <div
+          className="home-action-box"
           onClick={() => {
             soundFx.playClick();
             onOpenAuthors();
           }}
-          className="text-left p-5 rounded-2xl bg-[#121217] border border-white/10 hover:border-white/25 hover:bg-[#16161e] transition-all cursor-pointer flex items-start gap-4 group"
         >
-          <div className="p-3 rounded-xl bg-[#00ba7c]/10 text-[#00ba7c] group-hover:scale-105 transition-transform">
-            <Users size={24} />
+          <div className="hab-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
           </div>
-          <div>
-            <strong className="block text-white font-semibold text-base mb-1">Авторы ИТД</strong>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Каталог авторов, статистика постов и предложение новых участников
-            </p>
+          <div className="hab-info">
+            <strong>Авторы ИТД</strong>
+            <p>Поиск авторов и предложение новых участников</p>
           </div>
-        </button>
+        </div>
 
-        <button
-          type="button"
+        <div
+          className="home-action-box"
           onClick={() => {
             soundFx.playClick();
             onOpenLeaderboard();
           }}
-          className="text-left p-5 rounded-2xl bg-[#121217] border border-white/10 hover:border-white/25 hover:bg-[#16161e] transition-all cursor-pointer flex items-start gap-4 group"
         >
-          <div className="p-3 rounded-xl bg-[#f59e0b]/10 text-[#f59e0b] group-hover:scale-105 transition-transform">
-            <Trophy size={24} />
+          <div className="hab-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="8" r="7"></circle>
+              <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"></polyline>
+            </svg>
           </div>
-          <div>
-            <strong className="block text-white font-semibold text-base mb-1">Рейтинг игроков</strong>
-            <p className="text-white/50 text-xs leading-relaxed">
-              Таблица лидеров по очкам, сериям верных ответов и точности
-            </p>
+          <div className="hab-info">
+            <strong>Рейтинг игроков</strong>
+            <p>Таблица рекордов и лучших серий ответов</p>
           </div>
-        </button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }
