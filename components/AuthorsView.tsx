@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Author } from '@/types';
 import { soundFx } from '@/lib/sound';
+import { getAuthorsClient } from '@/lib/authors-client';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface AuthorsViewProps {
   onOpenSuggestAuthor: () => void;
@@ -12,15 +14,11 @@ export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const perPage = 10;
+  const parentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch('/api/authors')
-      .then((res) => res.json())
-      .then((d) => {
-        if (d.ok) setAuthors(d.authors || []);
-      })
+    getAuthorsClient()
+      .then((data) => setAuthors(data))
       .finally(() => setLoading(false));
   }, []);
 
@@ -33,8 +31,14 @@ export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
     );
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
-  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 140,
+    overscan: 4,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
 
   return (
     <section className="app-view">
@@ -64,82 +68,85 @@ export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
           className="search-input"
           placeholder="Поиск по имени, @handle или стилю..."
           value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(1);
-          }}
+          onChange={(e) => setSearch(e.target.value)}
         />
       </div>
 
-      <div className="authors-catalog-grid" id="public-authors-grid">
-        {paginated.length === 0 ? (
-          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '36px 0', color: 'var(--text-muted)' }}>
+      <div
+        ref={parentRef}
+        id="public-authors-virtual-container"
+        style={{
+          maxHeight: 620,
+          overflowY: 'auto',
+          marginTop: 16,
+          paddingRight: 4,
+        }}
+      >
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--text-muted)' }}>
             {loading ? 'Загрузка авторов...' : 'Авторы не найдены'}
           </div>
         ) : (
-          paginated.map((a) => {
-            const avatarColor = a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)';
-            const avatarText = a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?');
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: '100%',
+              position: 'relative',
+            }}
+          >
+            {virtualRows.map((virtualRow) => {
+              const a = filtered[virtualRow.index];
+              const avatarColor = a.avatar_color || a.avatarColor || 'linear-gradient(135deg, #0288d1, #26c6da)';
+              const avatarText = a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?');
 
-            return (
-              <div key={a.id} className="author-card-public">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div className="acp-avatar" style={{ background: avatarColor }}>
-                    {avatarText}
-                  </div>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <strong className="acp-name">{a.name}</strong>
-                      {a.verified && <span className="verified-icon">✓</span>}
-                    </div>
-                    <span className="acp-handle">{a.handle}</span>
-                  </div>
-                </div>
-
-                {a.badge && <span className="acp-badge-tag">{a.badge}</span>}
-
-                {a.bio && <p className="acp-bio">{a.bio}</p>}
-
-                <a
-                  href={`https://xn--d1ah4a.com/${a.handle || ''}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="acp-link"
+              return (
+                <div
+                  key={a.id || virtualRow.index}
+                  className="author-card-public"
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    transform: `translateY(${virtualRow.start}px)`,
+                    marginBottom: 12,
+                  }}
                 >
-                  Профиль в ИТД ↗
-                </a>
-              </div>
-            );
-          })
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div className="acp-avatar" style={{ background: avatarColor }}>
+                      {avatarText}
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <strong className="acp-name">{a.name}</strong>
+                        {a.verified && <span className="verified-icon">✓</span>}
+                      </div>
+                      <span className="acp-handle">{a.handle}</span>
+                    </div>
+                  </div>
+
+                  {a.badge && <span className="acp-badge-tag">{a.badge}</span>}
+
+                  {a.bio && <p className="acp-bio">{a.bio}</p>}
+
+                  <a
+                    href={`https://xn--d1ah4a.com/${a.handle || ''}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="acp-link"
+                  >
+                    Профиль в ИТД ↗
+                  </a>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
       <div className="pagination-bar" id="public-authors-pagination" style={{ marginTop: 16 }}>
         <div className="pagination-info" id="public-authors-page-info">
-          {filtered.length} авторов
-        </div>
-        <div className="pagination-controls">
-          <button
-            type="button"
-            className="btn-page-nav"
-            id="btn-public-authors-prev"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            ← Назад
-          </button>
-          <span className="pagination-page-number" id="public-authors-page-number">
-            {page} / {totalPages}
-          </span>
-          <button
-            type="button"
-            className="btn-page-nav"
-            id="btn-public-authors-next"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            Вперед →
-          </button>
+          Всего авторов: {filtered.length}
         </div>
       </div>
     </section>

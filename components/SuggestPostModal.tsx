@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Author } from '@/types';
 import { soundFx } from '@/lib/sound';
+import { getAuthorsClient } from '@/lib/authors-client';
 
 interface SuggestPostModalProps {
   isOpen: boolean;
@@ -32,11 +33,8 @@ export function SuggestPostModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    fetch('/api/authors')
-      .then((res) => res.json())
-      .then((d) => {
-        if (d.ok) setAuthorsList(d.authors || []);
-      })
+    getAuthorsClient()
+      .then((authors) => setAuthorsList(authors))
       .catch(() => {});
   }, [isOpen]);
 

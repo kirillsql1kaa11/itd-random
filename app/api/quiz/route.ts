@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { fetchSupabase } from '@/lib/supabase-server';
+import { fetchSupabase, getCachedAuthors } from '@/lib/supabase-server';
 import { APP_CONFIG } from '@/lib/config';
 
 function createHmacHash(text: string): string {
@@ -90,7 +90,7 @@ function verifySessionToken(token: string): any | null {
 async function handleGetQuestions(mode: string = 'blitz') {
   const [idRows, authorsData] = await Promise.all([
     fetchSupabase<any[]>('posts?select=id'),
-    fetchSupabase<any[]>('authors?select=*')
+    getCachedAuthors()
   ]);
 
   const allIds = (Array.isArray(idRows) ? idRows : []).map(r => r.id).filter(id => id !== null && id !== undefined);

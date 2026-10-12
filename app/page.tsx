@@ -1,20 +1,31 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { GameMode, QuizQuestion, UserStats } from '@/types';
 import { Header } from '@/components/Header';
 import { Footer } from '@/components/Footer';
 import { HomeView } from '@/components/HomeView';
 import { QuizView } from '@/components/QuizView';
-import { ResultView } from '@/components/ResultView';
-import { LeaderboardView } from '@/components/LeaderboardView';
-import { AuthorsView } from '@/components/AuthorsView';
-import { StatsView } from '@/components/StatsView';
-import { AdminView } from '@/components/AdminView';
-import { RulesModal } from '@/components/RulesModal';
-import { SuggestPostModal } from '@/components/SuggestPostModal';
-import { SuggestAuthorModal } from '@/components/SuggestAuthorModal';
 import { soundFx } from '@/lib/sound';
+import { getAuthorsClient } from '@/lib/authors-client';
+
+const ResultView = dynamic(() => import('@/components/ResultView').then((m) => m.ResultView));
+const LeaderboardView = dynamic(() => import('@/components/LeaderboardView').then((m) => m.LeaderboardView), {
+  loading: () => <div className="quiz-skeleton-card"><div className="quiz-skeleton-spinner"></div></div>,
+});
+const AuthorsView = dynamic(() => import('@/components/AuthorsView').then((m) => m.AuthorsView), {
+  loading: () => <div className="quiz-skeleton-card"><div className="quiz-skeleton-spinner"></div></div>,
+});
+const StatsView = dynamic(() => import('@/components/StatsView').then((m) => m.StatsView), {
+  loading: () => <div className="quiz-skeleton-card"><div className="quiz-skeleton-spinner"></div></div>,
+});
+const AdminView = dynamic(() => import('@/components/AdminView').then((m) => m.AdminView), {
+  loading: () => <div className="quiz-skeleton-card"><div className="quiz-skeleton-spinner"></div></div>,
+});
+const RulesModal = dynamic(() => import('@/components/RulesModal').then((m) => m.RulesModal));
+const SuggestPostModal = dynamic(() => import('@/components/SuggestPostModal').then((m) => m.SuggestPostModal));
+const SuggestAuthorModal = dynamic(() => import('@/components/SuggestAuthorModal').then((m) => m.SuggestAuthorModal));
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -87,6 +98,12 @@ export default function App() {
   useEffect(() => {
     const savedNick = localStorage.getItem('itd_player_nickname');
     if (savedNick) setNickname(savedNick);
+
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      });
+    }
   }, []);
 
   const handleNicknameChange = (newNick: string) => {
@@ -194,10 +211,8 @@ export default function App() {
       tags: post.tags || [],
       options: [],
     };
-    fetch('/api/authors')
-      .then((res) => res.json())
-      .then((d) => {
-        const pool = d.authors || [];
+    getAuthorsClient()
+      .then((pool) => {
         const correct = pool.find((a: any) => a.id === post.correct_author_id) || {
           id: post.correct_author_id,
           name: post.correct_author_id,

@@ -40,3 +40,21 @@ export async function fetchSupabase<T = any>(endpoint: string, options: {
     return text as unknown as T;
   }
 }
+
+let serverAuthorsCache: { data: any[]; timestamp: number } | null = null;
+const AUTHORS_CACHE_TTL = 15 * 60 * 1000;
+
+export async function getCachedAuthors(forceRefresh: boolean = false): Promise<any[]> {
+  const now = Date.now();
+  if (!forceRefresh && serverAuthorsCache && (now - serverAuthorsCache.timestamp < AUTHORS_CACHE_TTL)) {
+    return serverAuthorsCache.data;
+  }
+  const data = await fetchSupabase<any[]>('authors?select=*&order=name.asc');
+  const authors = Array.isArray(data) ? data : [];
+  serverAuthorsCache = { data: authors, timestamp: now };
+  return authors;
+}
+
+export function invalidateAuthorsCache(): void {
+  serverAuthorsCache = null;
+}

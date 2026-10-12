@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import confetti from 'canvas-confetti';
-import { generateShareCard } from '@/lib/sharecard';
 import { soundFx } from '@/lib/sound';
 import { GameMode } from '@/types';
 
@@ -48,25 +46,33 @@ export function ResultView({
 
   useEffect(() => {
     if (accuracy >= 60 || score > 500) {
-      try {
-        confetti({
-          particleCount: 80,
-          spread: 70,
-          origin: { y: 0.6 },
-          colors: ['#0080ff', '#00ba7c', '#f59e0b', '#ec4899'],
-        });
-      } catch {}
+      import('canvas-confetti')
+        .then((mod) => {
+          const conf: any = mod.default || mod;
+          conf({
+            particleCount: 80,
+            spread: 70,
+            origin: { y: 0.6 },
+            colors: ['#0080ff', '#00ba7c', '#f59e0b', '#ec4899'],
+          });
+        })
+        .catch(() => {});
     }
 
-    generateShareCard({
-      nickname: nickname || 'Аноним',
-      score,
-      accuracy,
-      streak: maxStreak,
-      mode,
-    }).then((img) => {
-      if (img) setShareImage(img);
-    });
+    import('@/lib/sharecard')
+      .then((mod) =>
+        mod.generateShareCard({
+          nickname: nickname || 'Аноним',
+          score,
+          accuracy,
+          streak: maxStreak,
+          mode,
+        })
+      )
+      .then((img) => {
+        if (img) setShareImage(img);
+      })
+      .catch(() => {});
 
     if (sessionToken) {
       fetch('/api/quiz', {

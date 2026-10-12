@@ -1,0 +1,16 @@
+{
+  "name": "ИТД - Викторина «Кто автор поста?»",
+  "short_name": "ИТД Викторина",
+  "description": "Угадай автора поста по скриншоту из соцсети ИТД, викторина с рейтингом игроков.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08080a",
+  "theme_color": "#08080a",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

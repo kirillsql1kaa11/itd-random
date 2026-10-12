@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { fetchSupabase } from '@/lib/supabase-server';
+import { fetchSupabase, getCachedAuthors, invalidateAuthorsCache } from '@/lib/supabase-server';
+import { optimizeScreenshot } from '@/lib/image-optimizer';
 import { APP_CONFIG } from '@/lib/config';
 
 const MAX_FAILED_ATTEMPTS = 5;
@@ -157,7 +158,8 @@ async function importItdPost(rawUrl: string, itdToken: string) {
       if (imgRes.ok) {
         const ctype = imgRes.headers.get('content-type') || 'image/jpeg';
         const buffer = await imgRes.arrayBuffer();
-        result.screenshot = `data:${ctype};base64,${Buffer.from(buffer).toString('base64')}`;
+        const rawScreenshot = `data:${ctype};base64,${Buffer.from(buffer).toString('base64')}`;
+        result.screenshot = await optimizeScreenshot(rawScreenshot);
       }
     } catch (e: any) {
       result.mediaWarning = 'Не удалось скачать картинку: ' + e.message;
@@ -285,7 +287,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'get_authors') {
-      const authors = await fetchSupabase<any[]>('authors?select=*&order=name.asc');
+      const authors = await getCachedAuthors();
       return NextResponse.json({ ok: true, authors: authors || [] });
     }
 
@@ -351,6 +353,7 @@ export async function POST(req: NextRequest) {
             }
           }).catch(() => {});
         }
+        invalidateAuthorsCache();
       }
 
       if (Array.isArray(backup.posts) && backup.posts.length > 0) {
@@ -384,11 +387,13 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid post data' }, { status: 400 });
       }
 
+      const compressedScreenshot = await optimizeScreenshot(post.screenshot);
+
       const record = {
         id: post.id || ('post_' + Date.now()),
         correct_author_id: post.correctAuthorId,
         post_text: post.postText || '',
-        screenshot: post.screenshot,
+        screenshot: compressedScreenshot,
         hint: post.hint || '',
         difficulty: post.difficulty || 'normal',
         tags: post.tags || [],
@@ -438,6 +443,8 @@ export async function POST(req: NextRequest) {
         body: record
       });
 
+      invalidateAuthorsCache();
+
       return NextResponse.json({ ok: true, author: record });
     }
 
@@ -448,6 +455,8 @@ export async function POST(req: NextRequest) {
       await fetchSupabase(`authors?id=eq.${encodeURIComponent(id)}`, {
         method: 'DELETE'
       });
+
+      invalidateAuthorsCache();
 
       return NextResponse.json({ ok: true });
     }
@@ -477,6 +486,7 @@ export async function POST(req: NextRequest) {
       if (!id) return NextResponse.json({ error: 'Suggestion ID required' }, { status: 400 });
 
       if (status === 'approved' && postRecord) {
+        const compressedScreenshot = await optimizeScreenshot(postRecord.screenshot);
         await fetchSupabase('posts', {
           method: 'POST',
           prefer: 'resolution=merge-duplicates',
@@ -484,7 +494,7 @@ export async function POST(req: NextRequest) {
             id: postRecord.id || ('post_' + Date.now()),
             correct_author_id: postRecord.correctAuthorId,
             post_text: postRecord.postText || '',
-            screenshot: postRecord.screenshot,
+            screenshot: compressedScreenshot,
             hint: postRecord.hint || '',
             difficulty: 'normal',
             tags: ['#итд']
@@ -528,6 +538,7 @@ export async function POST(req: NextRequest) {
           prefer: 'resolution=merge-duplicates',
           body: record
         });
+        invalidateAuthorsCache();
       }
 
       try {

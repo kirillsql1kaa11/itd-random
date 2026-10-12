@@ -17,6 +17,7 @@ const unbounded = Unbounded({
 export const metadata: Metadata = {
   title: 'ИТД - КТО АВТОР?',
   description: 'Угадай автора поста по скриншоту из соцсети ИТД, викторина с рейтингом игроков.',
+  manifest: '/manifest.json',
   icons: {
     icon: '/favicon.svg',
     apple: '/apple-touch-icon.png',

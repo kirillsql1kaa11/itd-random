@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetchSupabase } from '@/lib/supabase-server';
+import { optimizeScreenshot } from '@/lib/image-optimizer';
 
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 const MAX_SCREENSHOT_CHARS = 1.5 * 1024 * 1024;
@@ -81,10 +82,12 @@ export async function POST(req: NextRequest) {
       fullText = `[TAGS: ${body.tags.join(', ')}]\n${fullText}`;
     }
 
+    const compressedScreenshot = await optimizeScreenshot(screenshot);
+
     const record = {
       author_id: str(body.author_id, 100) || null,
       author_name: str(body.author_name, 100) || 'Не указан',
-      screenshot,
+      screenshot: compressedScreenshot,
       post_text: fullText,
       submitted_by: str(body.submitted_by, 50) || 'Аноним',
       status: 'pending'
