@@ -255,7 +255,7 @@ export function QuizView({
           onClick={() => setZoomImage(true)}
           title="Нажмите, чтобы приблизить скриншот"
         >
-          <img id="post-screenshot-img" src={question.screenshot} alt="Скриншот поста ИТД" />
+          <img id="post-screenshot-img" src={question.screenshot} alt="Скриншот поста ИТД" loading="eager" decoding="async" />
           <div className="screenshot-zoom-hint">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -437,7 +437,7 @@ export function QuizView({
       {zoomImage && question.screenshot && (
         <div className="lightbox-backdrop" id="image-lightbox" onClick={() => setZoomImage(false)}>
           <div className="lightbox-content">
-            <img src={question.screenshot} alt="Скриншот поста ИТД" className="lightbox-img" id="lightbox-img" />
+            <img src={question.screenshot} alt="Скриншот поста ИТД" className="lightbox-img" id="lightbox-img" decoding="async" />
           </div>
         </div>
       )}

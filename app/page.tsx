@@ -61,6 +61,28 @@ export default function App() {
   const [currentCorrectAuthor, setCurrentCorrectAuthor] = useState<any>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const preloadedImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+
+  useEffect(() => {
+    if (!questions || questions.length === 0) return;
+    const nextBatch = questions.slice(currentIdx, currentIdx + 4);
+    for (const q of nextBatch) {
+      if (q && q.screenshot && !preloadedImagesRef.current.has(q.screenshot)) {
+        const img = new Image();
+        img.src = q.screenshot;
+        if (typeof img.decode === 'function') {
+          img.decode().catch(() => {});
+        }
+        preloadedImagesRef.current.set(q.screenshot, img);
+      }
+    }
+    if (preloadedImagesRef.current.size > 20) {
+      const keys = Array.from(preloadedImagesRef.current.keys());
+      for (let i = 0; i < keys.length - 10; i++) {
+        preloadedImagesRef.current.delete(keys[i]);
+      }
+    }
+  }, [questions, currentIdx]);
 
   useEffect(() => {
     const savedNick = localStorage.getItem('itd_player_nickname');
