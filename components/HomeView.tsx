@@ -102,7 +102,7 @@ export function HomeView({
                 }}
               >
                 <strong>Выживание</strong>
-                <small>3 жизни, до первой ошибки</small>
+                <small>50 раундов, 3 жизни</small>
               </button>
               <button
                 type="button"
@@ -113,7 +113,7 @@ export function HomeView({
                 }}
               >
                 <strong>Свободный</strong>
-                <small>Без таймера и жизней</small>
+                <small>100 раундов без таймера</small>
               </button>
             </div>
           </div>

@@ -216,7 +216,7 @@ export function QuizView({
           <div className="stat-item">
             <span className="stat-label">Раунд</span>
             <span className="stat-val" id="stat-round-label">
-              {mode === 'survival' ? `Раунд ${currentIndex + 1}` : `Пост ${currentIndex + 1} / ${totalQuestions}`}
+              {mode === 'survival' ? `Раунд ${currentIndex + 1} / ${totalQuestions}` : `Пост ${currentIndex + 1} / ${totalQuestions}`}
             </span>
           </div>
           {mode === 'practice' && onFinishPractice && (

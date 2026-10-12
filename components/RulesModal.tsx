@@ -113,8 +113,8 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
             </div>
             <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
               <li><strong style={{ color: 'var(--text-primary)' }}>Блиц 10:</strong> 10 вопросов на очки с таймером 15 секунд на каждый</li>
-              <li><strong style={{ color: 'var(--text-primary)' }}>Выживание:</strong> игра идет до 3 ошибок</li>
-              <li><strong style={{ color: 'var(--text-primary)' }}>Свободный:</strong> игра без таймера и штрафов для тренировки</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Выживание:</strong> 50 раундов на выносливость с 3 жизнями</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Свободный:</strong> 100 раундов без таймера и штрафов для тренировки</li>
             </ul>
           </div>
 

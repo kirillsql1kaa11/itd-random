@@ -28,19 +28,20 @@ function createAnswerHash(postId: string, authorId: string): string {
   return createHmacHash(`${postId}:${authorId}`);
 }
 
-function createQuestionToken(postId: string, correctAuthorId: string, elimIds: string[] = []): string {
+function createQuestionToken(postId: string, correctAuthorId: string, elimIds: string[] = [], qid?: string): string {
   const payload = Buffer.from(JSON.stringify({
     id: postId,
+    qid: qid || postId,
     ansHash: createAnswerHash(postId, correctAuthorId),
     elim: elimIds,
-    exp: Date.now() + 15 * 60 * 1000
+    exp: Date.now() + 60 * 60 * 1000
   })).toString('base64url');
 
   const sig = createHmacHash(payload);
   return `${payload}.${sig}`;
 }
 
-function verifyQuestionToken(token: string): { id: string; ansHash: string; elim: string[]; exp: number } | null {
+function verifyQuestionToken(token: string): { id: string; qid: string; ansHash: string; elim: string[]; exp: number } | null {
   if (!token || typeof token !== 'string') return null;
   const parts = token.split('.');
   if (parts.length !== 2) return null;
@@ -99,10 +100,16 @@ async function handleGetQuestions(mode: string = 'blitz') {
     return NextResponse.json({ questions: [], total: 0 });
   }
 
-  const shuffledIds = shuffle(allIds);
-  const pickedIds = mode === 'blitz' ? shuffledIds.slice(0, 10) : shuffledIds.slice(0, 25);
+  const targetCount = mode === 'blitz' ? 10 : mode === 'survival' ? 50 : 100;
+  let pickedIds: string[] = [];
+  while (pickedIds.length < targetCount && allIds.length > 0) {
+    const needed = targetCount - pickedIds.length;
+    const chunk = shuffle(allIds);
+    pickedIds.push(...chunk.slice(0, needed));
+  }
 
-  const inList = pickedIds.join(',');
+  const uniqueIds = Array.from(new Set(pickedIds));
+  const inList = uniqueIds.join(',');
   const postsData = await fetchSupabase<any[]>(`posts?id=in.(${inList})&select=*`);
   const postsById = new Map((Array.isArray(postsData) ? postsData : []).map(p => [p.id, p]));
   const selectedPosts = pickedIds.map(id => postsById.get(id)).filter(Boolean);
@@ -111,7 +118,7 @@ async function handleGetQuestions(mode: string = 'blitz') {
     return NextResponse.json({ questions: [], total: 0 });
   }
 
-  const questions = selectedPosts.map(post => {
+  const questions = selectedPosts.map((post, index) => {
     const correctAuthorId = post.correct_author_id;
     const correctAuthor = authors.find(a => a.id === correctAuthorId) || {
       id: correctAuthorId,
@@ -147,7 +154,8 @@ async function handleGetQuestions(mode: string = 'blitz') {
       }));
 
     const elimIds = distractors.slice(0, 2).map(d => d.id);
-    const qToken = createQuestionToken(post.id, correctAuthorId, elimIds);
+    const qid = `${post.id}_${index}`;
+    const qToken = createQuestionToken(post.id, correctAuthorId, elimIds, qid);
 
     return {
       id: post.id,
@@ -171,7 +179,7 @@ async function handleGetQuestions(mode: string = 'blitz') {
     correctCount: 0,
     totalCount: 0,
     answered: [],
-    exp: Date.now() + 30 * 60 * 1000
+    exp: Date.now() + 120 * 60 * 1000
   };
   const sessionToken = createSessionToken(sessionData);
 
@@ -222,8 +230,9 @@ export async function POST(req: NextRequest) {
         const session = verifySessionToken(sessionToken);
         if (session && !session.submitted) {
           if (!Array.isArray(session.answered)) session.answered = [];
-          if (!session.answered.includes(tokenData.id)) {
-            session.answered.push(tokenData.id);
+          const questionKey = tokenData.qid || tokenData.id;
+          if (!session.answered.includes(questionKey)) {
+            session.answered.push(questionKey);
             session.totalCount = (session.totalCount || 0) + 1;
 
             if (isCorrect) {
