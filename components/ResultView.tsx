@@ -26,7 +26,7 @@ interface ResultViewProps {
   }>;
   onPlayAgain: () => void;
   onGoHome: () => void;
-  onLeaderboardSubmitted?: () => void;
+  onGoLeaderboard?: () => void;
 }
 
 export function ResultView({
@@ -41,7 +41,7 @@ export function ResultView({
   history = [],
   onPlayAgain,
   onGoHome,
-  onLeaderboardSubmitted,
+  onGoLeaderboard,
 }: ResultViewProps) {
   const [shareImage, setShareImage] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -77,11 +77,7 @@ export function ResultView({
           sessionToken,
           nickname: nickname || 'Аноним',
         }),
-      })
-        .then((res) => {
-          if (res.ok && onLeaderboardSubmitted) onLeaderboardSubmitted();
-        })
-        .catch(() => {});
+      }).catch(() => {});
     }
   }, []);
 
@@ -229,7 +225,7 @@ export function ResultView({
             </button>
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
             <button
               type="button"
               className="btn-secondary-action"
@@ -238,6 +234,19 @@ export function ResultView({
             >
               ← Вернуться на главную
             </button>
+            {onGoLeaderboard && (
+              <button
+                type="button"
+                className="btn-secondary-action"
+                onClick={() => {
+                  soundFx.playClick();
+                  onGoLeaderboard();
+                }}
+                style={{ fontSize: 13, padding: '8px 20px' }}
+              >
+                Таблица рекордов ➔
+              </button>
+            )}
           </div>
         </div>
       </div>

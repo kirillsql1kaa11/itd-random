@@ -512,7 +512,7 @@ export default function App() {
             history={gameHistory}
             onPlayAgain={startQuiz}
             onGoHome={() => setActiveTab('home')}
-            onLeaderboardSubmitted={() => setActiveTab('leaderboard')}
+            onGoLeaderboard={() => setActiveTab('leaderboard')}
           />
         )}
 

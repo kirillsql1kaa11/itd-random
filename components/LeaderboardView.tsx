@@ -7,6 +7,7 @@ import { soundFx } from '@/lib/sound';
 export function LeaderboardView() {
   const [records, setRecords] = useState<LeaderboardRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filterMode, setFilterMode] = useState<'all' | 'blitz' | 'survival' | 'practice'>('all');
   const [page, setPage] = useState(1);
   const perPage = 15;
 
@@ -28,8 +29,12 @@ export function LeaderboardView() {
     loadLeaderboard();
   }, []);
 
-  const totalPages = Math.max(1, Math.ceil(records.length / perPage));
-  const paginated = records.slice((page - 1) * perPage, page * perPage);
+  const filteredRecords = filterMode === 'all'
+    ? records
+    : records.filter((r) => r.mode === filterMode);
+
+  const totalPages = Math.max(1, Math.ceil(filteredRecords.length / perPage));
+  const paginated = filteredRecords.slice((page - 1) * perPage, page * perPage);
 
   return (
     <section className="app-view">
@@ -51,6 +56,53 @@ export function LeaderboardView() {
         </button>
       </div>
 
+      <div className="mode-pills" style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          type="button"
+          className={`btn-mode-select ${filterMode === 'all' ? 'active' : ''}`}
+          onClick={() => {
+            soundFx.playClick();
+            setFilterMode('all');
+            setPage(1);
+          }}
+        >
+          Все
+        </button>
+        <button
+          type="button"
+          className={`btn-mode-select ${filterMode === 'blitz' ? 'active' : ''}`}
+          onClick={() => {
+            soundFx.playClick();
+            setFilterMode('blitz');
+            setPage(1);
+          }}
+        >
+          Блиц 10
+        </button>
+        <button
+          type="button"
+          className={`btn-mode-select ${filterMode === 'survival' ? 'active' : ''}`}
+          onClick={() => {
+            soundFx.playClick();
+            setFilterMode('survival');
+            setPage(1);
+          }}
+        >
+          Выживание
+        </button>
+        <button
+          type="button"
+          className={`btn-mode-select ${filterMode === 'practice' ? 'active' : ''}`}
+          onClick={() => {
+            soundFx.playClick();
+            setFilterMode('practice');
+            setPage(1);
+          }}
+        >
+          Свободный
+        </button>
+      </div>
+
       <div className="table-responsive" style={{ marginTop: 16 }}>
         <table className="admin-posts-table">
           <thead>
@@ -67,7 +119,7 @@ export function LeaderboardView() {
             {paginated.length === 0 ? (
               <tr>
                 <td colSpan={6} className="table-empty">
-                  {loading ? 'Загрузка рейтинга...' : 'Нет записей в рейтинге'}
+                  {loading ? 'Загрузка рейтинга...' : 'Нет записей в выбранном режиме'}
                 </td>
               </tr>
             ) : (
@@ -114,7 +166,7 @@ export function LeaderboardView() {
 
       <div className="admin-pagination-bar" id="leaderboard-pagination" style={{ marginTop: 16 }}>
         <div className="admin-pagination-info" id="leaderboard-page-info">
-          {records.length} записей
+          {filteredRecords.length} записей
         </div>
         <div className="admin-pagination-controls">
           <button
