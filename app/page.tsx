@@ -193,6 +193,9 @@ export default function App() {
           avatarText: a.avatar_text || a.avatarText || (a.name ? a.name[0] : '?'),
           verified: Boolean(a.verified),
         }));
+        const elimIds = others.slice(0, 2).map((a: any) => a.id);
+        const testPayload = btoa(JSON.stringify({ elim: elimIds }));
+        testQ.qToken = `${testPayload}.test`;
         testQ.options = options;
         setQuestions([testQ]);
         setCurrentIdx(0);
@@ -416,10 +419,32 @@ export default function App() {
   const handleUse5050 = () => {
     if (hints5050Left <= 0 || isAnswered || !questions[currentIdx]) return;
     const q = questions[currentIdx];
-    const distractors = q.options.filter((o) => o.id !== correctAuthorId);
-    const toEliminate = distractors.slice(0, 2).map((d) => d.id);
+    let toEliminate: string[] = [];
+
+    if (q.qToken) {
+      try {
+        const part = q.qToken.split('.')[0];
+        if (part) {
+          let b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+          const pad = b64.length % 4;
+          if (pad) b64 += '='.repeat(4 - pad);
+          const json = decodeURIComponent(escape(atob(b64)));
+          const payload = JSON.parse(json);
+          if (Array.isArray(payload.elim) && payload.elim.length > 0) {
+            toEliminate = payload.elim.slice(0, 2);
+          }
+        }
+      } catch {}
+    }
+
+    if (toEliminate.length === 0) {
+      const distractors = q.options.filter((o) => o.id !== correctAuthorId);
+      toEliminate = distractors.slice(0, 2).map((d) => d.id);
+    }
+
     setEliminatedIds(toEliminate);
     setHints5050Left((prev) => prev - 1);
+    setHintUsed(true);
   };
 
   const handleUseHint = () => {
