@@ -45,6 +45,21 @@ export default function App() {
   const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
 
+  const [gameHistory, setGameHistory] = useState<Array<{
+    post: QuizQuestion;
+    correctAuthor: {
+      name: string;
+      handle: string;
+      avatarColor?: string;
+      avatarText?: string;
+      bio?: string;
+    };
+    chosenAuthorId: string | null;
+    isCorrect: boolean;
+  }>>([]);
+  const [lastEarnedPoints, setLastEarnedPoints] = useState(0);
+  const [currentCorrectAuthor, setCurrentCorrectAuthor] = useState<any>(null);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -123,6 +138,9 @@ export default function App() {
     setShowTextHint(false);
     setCorrectCount(0);
     setSessionToken(null);
+    setGameHistory([]);
+    setLastEarnedPoints(0);
+    setCurrentCorrectAuthor(null);
 
     try {
       const res = await fetch(`/api/quiz?action=get_questions&mode=${selectedMode}`);
@@ -194,6 +212,9 @@ export default function App() {
         setShowTextHint(false);
         setCorrectCount(0);
         setSessionToken(null);
+        setGameHistory([]);
+        setLastEarnedPoints(0);
+        setCurrentCorrectAuthor(null);
       })
       .catch(() => {});
   };
@@ -216,6 +237,8 @@ export default function App() {
     setEliminatedIds([]);
     setHintUsed(false);
     setShowTextHint(false);
+    setLastEarnedPoints(0);
+    setCurrentCorrectAuthor(null);
     setTimeLeft(15);
     setMaxTime(15);
   }, [questions.length, selectedMode, finishGame]);
@@ -231,6 +254,7 @@ export default function App() {
     let isCorrect = false;
     let earnedPoints = 0;
     let verifiedCorrectId = chosenAuthorId;
+    let resolvedAuthor: any = null;
 
     try {
       const res = await fetch('/api/quiz', {
@@ -251,6 +275,7 @@ export default function App() {
         isCorrect = Boolean(data.isCorrect);
         earnedPoints = Number(data.pointsEarned) || 0;
         verifiedCorrectId = data.correctAuthorId || chosenAuthorId;
+        resolvedAuthor = data.correctAuthor || null;
         if (data.sessionToken) setSessionToken(data.sessionToken);
       }
     } catch {
@@ -258,6 +283,20 @@ export default function App() {
     }
 
     setCorrectAuthorId(verifiedCorrectId);
+
+    if (!resolvedAuthor && q) {
+      resolvedAuthor = q.options.find((o) => o.id === verifiedCorrectId) || null;
+    }
+    if (!resolvedAuthor && verifiedCorrectId) {
+      resolvedAuthor = {
+        id: verifiedCorrectId,
+        name: verifiedCorrectId,
+        handle: '@' + verifiedCorrectId,
+        bio: 'Автор в соцсети ИТД',
+      };
+    }
+    setCurrentCorrectAuthor(resolvedAuthor);
+    setLastEarnedPoints(earnedPoints);
 
     let nextScore = score;
     let nextStreak = streak;
@@ -286,9 +325,29 @@ export default function App() {
     setLives(nextLives);
     setCorrectCount(nextCorrect);
 
-    setTimeout(() => {
-      handleNextQuestion(currentIdx + 1, nextLives, nextScore, nextMaxStreak, nextCorrect);
-    }, 1200);
+    if (q) {
+      setGameHistory((prev) => [
+        ...prev,
+        {
+          post: q,
+          correctAuthor: {
+            name: resolvedAuthor?.name || 'Автор',
+            handle: resolvedAuthor?.handle || '@' + verifiedCorrectId,
+            avatarColor: resolvedAuthor?.avatarColor,
+            avatarText: resolvedAuthor?.avatarText,
+            bio: resolvedAuthor?.bio,
+          },
+          chosenAuthorId,
+          isCorrect,
+        },
+      ]);
+    }
+
+    if (selectedMode === 'survival' && nextLives <= 0) {
+      setTimeout(() => {
+        finishGame(nextScore, nextMaxStreak, nextCorrect, currentIdx + 1);
+      }, 2200);
+    }
   };
 
   const handleTimeout = useCallback(() => {
@@ -299,6 +358,14 @@ export default function App() {
     setSelectedAuthorId('__timeout__');
     soundFx.playWrong();
 
+    const q = questions[currentIdx];
+    let resolvedAuthor: any = null;
+    if (q) {
+      resolvedAuthor = q.options[0] || null;
+    }
+    setCurrentCorrectAuthor(resolvedAuthor);
+    setLastEarnedPoints(0);
+
     let nextLives = lives;
     if (selectedMode === 'survival') {
       nextLives -= 1;
@@ -306,10 +373,27 @@ export default function App() {
     }
     setStreak(0);
 
-    setTimeout(() => {
-      handleNextQuestion(currentIdx + 1, nextLives, score, maxStreak, correctCount);
-    }, 1200);
-  }, [isAnswered, questions, currentIdx, lives, selectedMode, score, maxStreak, correctCount, handleNextQuestion]);
+    if (q) {
+      setGameHistory((prev) => [
+        ...prev,
+        {
+          post: q,
+          correctAuthor: {
+            name: resolvedAuthor?.name || 'Автор',
+            handle: resolvedAuthor?.handle || '@handle',
+          },
+          chosenAuthorId: null,
+          isCorrect: false,
+        },
+      ]);
+    }
+
+    if (selectedMode === 'survival' && nextLives <= 0) {
+      setTimeout(() => {
+        finishGame(score, maxStreak, correctCount, currentIdx + 1);
+      }, 2200);
+    }
+  }, [isAnswered, questions, currentIdx, lives, selectedMode, score, maxStreak, correctCount, finishGame]);
 
   useEffect(() => {
     if (activeTab === 'quiz' && !isAnswered && !isLoadingQuiz && selectedMode !== 'practice') {
@@ -348,6 +432,11 @@ export default function App() {
   const handleSkipQuestion = () => {
     if (selectedMode !== 'practice' || isAnswered) return;
     handleNextQuestion(currentIdx + 1, lives, score, maxStreak, correctCount);
+  };
+
+  const handleFinishPractice = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    finishGame(score, maxStreak, correctCount, currentIdx + (isAnswered ? 1 : 0));
   };
 
   const totalAnswered = currentIdx + (isAnswered ? 1 : 0);
@@ -399,9 +488,13 @@ export default function App() {
             textHintsLeft={textHintsLeft}
             showTextHint={showTextHint}
             isLoading={isLoadingQuiz}
+            earnedPoints={lastEarnedPoints}
+            correctAuthor={currentCorrectAuthor}
             onSelectOption={handleSelectOption}
             onUse5050={handleUse5050}
             onUseHint={handleUseHint}
+            onNextQuestion={() => handleNextQuestion(currentIdx + 1, lives, score, maxStreak, correctCount)}
+            onFinishPractice={selectedMode === 'practice' ? handleFinishPractice : undefined}
             onSkip={handleSkipQuestion}
           />
         )}
@@ -416,6 +509,7 @@ export default function App() {
             mode={selectedMode}
             nickname={nickname}
             sessionToken={sessionToken}
+            history={gameHistory}
             onPlayAgain={startQuiz}
             onGoHome={() => setActiveTab('home')}
             onLeaderboardSubmitted={() => setActiveTab('leaderboard')}

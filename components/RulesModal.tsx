@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Flame, Clock, Heart, Zap, Keyboard } from 'lucide-react';
+import { Zap, Flame, Heart, Keyboard } from 'lucide-react';
 
 interface RulesModalProps {
   isOpen: boolean;
@@ -12,71 +12,149 @@ export function RulesModal({ isOpen, onClose }: RulesModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg rounded-3xl bg-[#121218] border border-white/10 p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-white/10 pb-4">
-          <div>
-            <h3 className="font-heading font-extrabold text-xl text-white">Правила игры</h3>
-            <p className="text-xs text-white/50">Как играть и зарабатывать максимум очков</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full text-white/40 hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <div
+      className="modal-backdrop"
+      id="modal-rules"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="modal-card" style={{ maxWidth: 540 }}>
+        <button
+          type="button"
+          className="modal-close-btn"
+          onClick={onClose}
+        >
+          ✕
+        </button>
 
-        <div className="space-y-4 text-xs sm:text-sm text-white/70">
-          <div className="p-4 rounded-2xl bg-[#161622] border border-white/5 space-y-2">
-            <div className="flex items-center gap-2 text-white font-semibold">
-              <Zap size={16} className="text-[#0080ff]" />
+        <h2 className="modal-title">Правила игры</h2>
+        <p className="modal-subtitle">Как играть и зарабатывать максимум очков в викторине ИТД</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontWeight: 700,
+                fontSize: 13,
+                color: 'var(--text-primary)',
+                marginBottom: 6,
+              }}
+            >
+              <Zap size={16} color="var(--accent-blue)" />
               <span>Суть викторины</span>
             </div>
-            <p className="leading-relaxed text-white/60 text-xs">
+            <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
               Вам показывается скриншот реального поста из соцсети ИТД с замазанным именем автора. Выберите правильного создателя из 4 предложенных вариантов.
             </p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#161622] border border-white/5 space-y-2">
-            <div className="flex items-center gap-2 text-white font-semibold">
-              <Flame size={16} className="text-[#f59e0b]" />
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontWeight: 700,
+                fontSize: 13,
+                color: 'var(--text-primary)',
+                marginBottom: 6,
+              }}
+            >
+              <Flame size={16} color="var(--accent-amber)" />
               <span>Очки и серии (Streak)</span>
             </div>
-            <ul className="space-y-1 text-white/60 text-xs list-disc pl-4">
-              <li>Базовая награда: 100 очков за верный ответ</li>
-              <li>Бонус за скорость: до +50 очков за быстрый клик</li>
-              <li>Множитель серии: серия из 3 верных дает x1.5, из 5 дает x2.0, из 8 дает x3.0</li>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <li>Базовая награда: <strong style={{ color: 'var(--text-primary)' }}>100 очков</strong> за верный ответ</li>
+              <li>Бонус за скорость: <strong style={{ color: 'var(--text-primary)' }}>до +50 очков</strong> за быстрый клик</li>
+              <li>Множитель серии: серия из 3 дает <strong style={{ color: 'var(--accent-amber)' }}>x1.5</strong>, из 5 дает <strong style={{ color: 'var(--accent-amber)' }}>x2.0</strong>, из 8 дает <strong style={{ color: 'var(--accent-amber)' }}>x3.0</strong></li>
               <li>Ошибочный ответ сбрасывает текущую серию в 0</li>
             </ul>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#161622] border border-white/5 space-y-2">
-            <div className="flex items-center gap-2 text-white font-semibold">
-              <Heart size={16} className="text-[#ef4444]" />
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontWeight: 700,
+                fontSize: 13,
+                color: 'var(--text-primary)',
+                marginBottom: 6,
+              }}
+            >
+              <Heart size={16} color="var(--accent-danger)" />
               <span>Режимы игры</span>
             </div>
-            <ul className="space-y-1 text-white/60 text-xs list-disc pl-4">
-              <li><strong className="text-white">Блиц 10:</strong> 10 вопросов на очки с таймером 15 секунд на каждый</li>
-              <li><strong className="text-white">Выживание:</strong> игра идет до 3 ошибок, вопросы усложняются</li>
-              <li><strong className="text-white">Свободный:</strong> игра без таймера и штрафов для тренировки</li>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Блиц 10:</strong> 10 вопросов на очки с таймером 15 секунд на каждый</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Выживание:</strong> игра идет до 3 ошибок</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Свободный:</strong> игра без таймера и штрафов для тренировки</li>
             </ul>
           </div>
 
-          <div className="p-4 rounded-2xl bg-[#161622] border border-white/5 space-y-2">
-            <div className="flex items-center gap-2 text-white font-semibold">
-              <Keyboard size={16} className="text-[#00ba7c]" />
+          <div
+            style={{
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 'var(--radius-md)',
+              padding: '14px 16px',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontWeight: 700,
+                fontSize: 13,
+                color: 'var(--text-primary)',
+                marginBottom: 6,
+              }}
+            >
+              <Keyboard size={16} color="var(--accent-green)" />
               <span>Горячие клавиши</span>
             </div>
-            <p className="leading-relaxed text-white/60 text-xs">
-              Для быстрого выбора ответа нажимайте клавиши 1, 2, 3 и 4 на клавиатуре.
-            </p>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              <li><strong style={{ color: 'var(--text-primary)' }}>1, 2, 3, 4:</strong> выбор варианта ответа</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Пробел / Enter:</strong> следующий вопрос</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>H:</strong> подсказка автора (-30 очков)</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>F / 5:</strong> подсказка 50/50 (-30 очков)</li>
+              <li><strong style={{ color: 'var(--text-primary)' }}>Z:</strong> приблизить скриншот поста</li>
+            </ul>
           </div>
         </div>
 
         <button
+          type="button"
           onClick={onClose}
-          className="w-full py-3.5 rounded-xl bg-[#0080ff] hover:bg-[#1a8cff] text-white font-semibold text-xs transition-all cursor-pointer"
+          className="btn-primary-action"
+          style={{ width: '100%', justifyContent: 'center' }}
         >
           Понятно, к игре
         </button>
