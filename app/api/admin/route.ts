@@ -1,76 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import crypto from 'crypto';
-import { fetchSupabase, getCachedAuthors, invalidateAuthorsCache } from '@/lib/supabase-server';
-import { optimizeScreenshot } from '@/lib/image-optimizer';
-import { APP_CONFIG } from '@/lib/config';
+import { apiErrorPayload, fetchAllRows, fetchSupabase, getCachedAuthors, invalidateAuthorsCache } from '@/lib/supabase-server';
+import { changeAdminPassword, loginAdmin, verifyAdminToken } from '@/lib/admin-auth';
+import { deleteStoredScreenshot, ensureStoredScreenshot, uploadDataUrlScreenshot, uploadScreenshotBuffer } from '@/lib/storage';
+import { optimizeImageBuffer } from '@/lib/image-optimizer';
 
 const MAX_FAILED_ATTEMPTS = 5;
 const RATE_WINDOW_MS = 15 * 60 * 1000;
 const memoryAttempts = new Map<string, number[]>();
-
-function createHmacHash(text: string): string {
-  return crypto.createHmac('sha256', APP_CONFIG.apiSecret).update(text).digest('hex');
-}
-
-function safeEqual(a: string, b: string): boolean {
-  if (typeof a !== 'string' || typeof b !== 'string') return false;
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (Buffer.byteLength(bufA) !== Buffer.byteLength(bufB)) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
-}
-
-function passwordFingerprint(storedPassword: string): string {
-  return createHmacHash(`pwf:${storedPassword}`).slice(0, 32);
-}
-
-function createAdminToken(storedPassword: string): string {
-  const payload = Buffer.from(JSON.stringify({
-    role: 'admin',
-    iat: Date.now(),
-    pwf: passwordFingerprint(storedPassword),
-    exp: Date.now() + 24 * 60 * 60 * 1000
-  })).toString('base64url');
-
-  const sig = createHmacHash(payload);
-  return `${payload}.${sig}`;
-}
-
-async function getStoredAdminPassword(): Promise<string | null> {
-  try {
-    const data = await fetchSupabase<any[]>('admin_settings?key=eq.admin_password&select=value');
-    if (Array.isArray(data) && data.length > 0 && data[0].value) {
-      return String(data[0].value).trim();
-    }
-  } catch {}
-  return APP_CONFIG.adminPassword || 'admin123';
-}
-
-async function verifyAdminToken(token: string | null | undefined): Promise<boolean> {
-  if (!token || typeof token !== 'string') return false;
-  const cleanToken = token.replace(/^Bearer\s+/i, '').trim();
-  const parts = cleanToken.split('.');
-  if (parts.length !== 2) return false;
-  const [payloadStr, sig] = parts;
-  const expectedSig = createHmacHash(payloadStr);
-
-  if (!safeEqual(sig, expectedSig)) {
-    return false;
-  }
-
-  let data: any;
-  try {
-    data = JSON.parse(Buffer.from(payloadStr, 'base64url').toString('utf-8'));
-  } catch {
-    return false;
-  }
-
-  if (!data || Date.now() > data.exp || data.role !== 'admin' || !data.pwf) return false;
-
-  const stored = await getStoredAdminPassword();
-  if (!stored) return false;
-  return safeEqual(data.pwf, passwordFingerprint(stored));
-}
 
 const ITD_HOST = 'xn--d1ah4a.com';
 const ITD_MAX_JSON = 1024 * 1024;
@@ -107,6 +43,15 @@ function pickMediaUrl(root: any): string | null {
   return null;
 }
 
+function screenshotRef(row: any): any {
+  if (!row || typeof row !== 'object') return row;
+  const value = typeof row.screenshot === 'string' ? row.screenshot : '';
+  if (value && !/^https?:\/\//i.test(value) && !value.startsWith('/api/screenshot/')) {
+    return { ...row, screenshot: `/api/screenshot/${encodeURIComponent(row.id)}` };
+  }
+  return row;
+}
+
 async function importItdPost(rawUrl: string, itdToken: string) {
   const parsed = parseItdPostUrl(rawUrl);
   if (!parsed) {
@@ -119,10 +64,10 @@ async function importItdPost(rawUrl: string, itdToken: string) {
   const cleanToken = itdToken.replace(/^Bearer\s+/i, '').trim();
   const res = await fetch(`https://${ITD_HOST}/api/posts/${parsed.id}`, {
     headers: {
-      'Accept': 'application/json',
-      'Authorization': `Bearer ${cleanToken}`,
-      'User-Agent': 'Mozilla/5.0 (itd-random admin import)'
-    }
+      Accept: 'application/json',
+      Authorization: `Bearer ${cleanToken}`,
+      'User-Agent': 'Mozilla/5.0 (itd-random admin import)',
+    },
   });
 
   if (res.status === 401 || res.status === 403) {
@@ -135,7 +80,13 @@ async function importItdPost(rawUrl: string, itdToken: string) {
     return { status: 502, body: { error: `ИТД вернул ошибку ${res.status}` } };
   }
 
-  const json = await res.json().catch(() => null);
+  const rawText = await res.text();
+  if (rawText.length > ITD_MAX_JSON) {
+    return { status: 413, body: { error: 'Ответ ИТД слишком большой' } };
+  }
+  let json: any = null;
+  try { json = JSON.parse(rawText); } catch { json = null; }
+
   const root = (json && (json.data || json.post)) || json || {};
   const author = root.author || root.user || root.owner || {};
   const result: any = {
@@ -144,7 +95,7 @@ async function importItdPost(rawUrl: string, itdToken: string) {
     authorName: author.displayName || author.display_name || author.name || author.nickname || author.username || parsed.handle,
     text: String(root.content || root.text || root.body || root.caption || '').slice(0, 2000),
     mediaUrl: null,
-    screenshot: null
+    screenshot: null,
   };
 
   const mediaUrl = pickMediaUrl(root);
@@ -152,14 +103,21 @@ async function importItdPost(rawUrl: string, itdToken: string) {
     try {
       const fullMediaUrl = new URL(mediaUrl, `https://${ITD_HOST}`).toString();
       result.mediaUrl = fullMediaUrl;
-      const imgRes = await fetch(fullMediaUrl, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (itd-random admin import)' }
-      });
+      const imgRes = await fetch(fullMediaUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (itd-random admin import)' } });
       if (imgRes.ok) {
+        const declaredLength = Number(imgRes.headers.get('content-length') || 0);
+        if (declaredLength > ITD_MAX_IMAGE) {
+          throw new Error('картинка больше 3 МБ');
+        }
+        const buffer = Buffer.from(await imgRes.arrayBuffer());
+        if (buffer.length > ITD_MAX_IMAGE) {
+          throw new Error('картинка больше 3 МБ');
+        }
         const ctype = imgRes.headers.get('content-type') || 'image/jpeg';
-        const buffer = await imgRes.arrayBuffer();
-        const rawScreenshot = `data:${ctype};base64,${Buffer.from(buffer).toString('base64')}`;
-        result.screenshot = await optimizeScreenshot(rawScreenshot);
+        const optimized = await optimizeImageBuffer(`data:${ctype};base64,${buffer.toString('base64')}`);
+        if (optimized) {
+          result.screenshot = await uploadScreenshotBuffer(optimized.buffer, optimized.contentType, 'imports');
+        }
       }
     } catch (e: any) {
       result.mediaWarning = 'Не удалось скачать картинку: ' + e.message;
@@ -173,6 +131,121 @@ function getClientIp(req: NextRequest): string {
   const h = req.headers;
   const raw = h.get('x-real-ip') || h.get('x-vercel-forwarded-for') || h.get('x-forwarded-for') || 'unknown';
   return String(raw).split(',')[0].trim() || 'unknown';
+}
+
+function dayKey(value: string | number | Date): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toISOString().slice(0, 10);
+}
+
+async function getAdminStats() {
+  const now = Date.now();
+  const since30 = new Date(now - 30 * 864e5).toISOString();
+  const dayAgo = now - 864e5;
+  const weekAgo = now - 7 * 864e5;
+
+  const [lb, posts, authors, suggPosts, suggAuthors, sessions, hardQuestions] = await Promise.all([
+    fetchAllRows<any>('leaderboard?select=nickname,score,accuracy,mode,player_id,created_at&order=created_at.desc').catch(() => []),
+    fetchSupabase<any[]>('posts?select=id').catch(() => []),
+    fetchSupabase<any[]>('authors?select=id').catch(() => []),
+    fetchSupabase<any[]>('suggestions_posts?select=id,status').catch(() => []),
+    fetchSupabase<any[]>('suggestions_authors?select=id,status').catch(() => []),
+    fetchAllRows<any>(`game_sessions?select=player_id,status,total_count,started_at&gte.started_at=${encodeURIComponent(since30)}&order=started_at.desc`).catch(() => []),
+    fetchSupabase<any[]>('question_stats?select=*&order=error_rate.desc,attempts.desc&limit=8').catch(() => []),
+  ]);
+
+  const leaderboardRows = Array.isArray(lb) ? lb : [];
+  let highest = 0;
+  let leader = '—';
+  let scoreSum = 0;
+  let accuracySum = 0;
+  const uniquePlayers = new Set<string>();
+
+  leaderboardRows.forEach((r) => {
+    const identity = (r.player_id || '').trim() || (r.nickname || '').trim();
+    if (identity) uniquePlayers.add(identity);
+    const score = Number(r.score) || 0;
+    scoreSum += score;
+    accuracySum += Number(r.accuracy) || 0;
+    if (score > highest) {
+      highest = score;
+      leader = (r.nickname || '').trim() || '—';
+    }
+  });
+
+  const sessionRows = Array.isArray(sessions) ? sessions : [];
+  const dau = new Set<string>();
+  const wau = new Set<string>();
+  const perPlayer = new Map<string, number>();
+  let gamesToday = 0;
+  let games7d = 0;
+  let started = 0;
+  let played = 0;
+  let submitted = 0;
+  const daily = new Map<string, { sessions: number; players: Set<string> }>();
+
+  for (let i = 13; i >= 0; i--) {
+    const key = dayKey(now - i * 864e5);
+    if (key) daily.set(key, { sessions: 0, players: new Set() });
+  }
+
+  sessionRows.forEach((s) => {
+    const startedAt = new Date(s.started_at).getTime();
+    if (!Number.isFinite(startedAt)) return;
+    const identity = (s.player_id || '').trim();
+    if (identity) {
+      perPlayer.set(identity, (perPlayer.get(identity) || 0) + 1);
+      if (startedAt >= dayAgo) dau.add(identity);
+      if (startedAt >= weekAgo) wau.add(identity);
+    }
+    if (startedAt >= dayAgo) gamesToday += 1;
+    if (startedAt >= weekAgo) games7d += 1;
+    started += 1;
+    if ((Number(s.total_count) || 0) > 0) played += 1;
+    if (s.status === 'submitted') submitted += 1;
+    const bucket = daily.get(dayKey(startedAt));
+    if (bucket) {
+      bucket.sessions += 1;
+      if (identity) bucket.players.add(identity);
+    }
+  });
+
+  const allSuggestions = [...(Array.isArray(suggPosts) ? suggPosts : []), ...(Array.isArray(suggAuthors) ? suggAuthors : [])];
+  const approvedSuggestions = allSuggestions.filter((s) => s.status === 'approved').length;
+  const returnsCount = [...perPlayer.values()].filter((count) => count > 1).length;
+
+  return {
+    totalGames: leaderboardRows.length,
+    uniquePlayers: uniquePlayers.size,
+    topScore: highest,
+    topPlayer: leader,
+    totalPosts: Array.isArray(posts) ? posts.length : 0,
+    totalAuthors: Array.isArray(authors) ? authors.length : 0,
+    pendingPosts: Array.isArray(suggPosts) ? suggPosts.filter((p) => !p.status || p.status === 'pending').length : 0,
+    pendingAuthors: Array.isArray(suggAuthors) ? suggAuthors.filter((a) => !a.status || a.status === 'pending').length : 0,
+    dau: dau.size,
+    wau: wau.size,
+    gamesToday,
+    games7d,
+    completionRate: started > 0 ? Math.round((submitted / started) * 100) : 0,
+    returnRate: perPlayer.size > 0 ? Math.round((returnsCount / perPlayer.size) * 100) : 0,
+    avgScore: leaderboardRows.length > 0 ? Math.round(scoreSum / leaderboardRows.length) : 0,
+    avgAccuracy: leaderboardRows.length > 0 ? Math.round(accuracySum / leaderboardRows.length) : 0,
+    suggestionConversion: allSuggestions.length > 0 ? Math.round((approvedSuggestions / allSuggestions.length) * 100) : 0,
+    daily: [...daily.entries()].map(([date, value]) => ({ date, sessions: value.sessions, players: value.players.size })),
+    funnel: { started, played, submitted },
+    hardQuestions: (Array.isArray(hardQuestions) ? hardQuestions : [])
+      .filter((q) => Number(q.attempts) >= 3)
+      .slice(0, 5)
+      .map((q) => ({
+        post_id: q.post_id,
+        author_name: q.author_name,
+        attempts: Number(q.attempts) || 0,
+        correct: Number(q.correct) || 0,
+        error_rate: Number(q.error_rate) || 0,
+      })),
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -189,35 +262,27 @@ export async function POST(req: NextRequest) {
       }
 
       const ip = getClientIp(req);
-      const attempts = (memoryAttempts.get(ip) || []).filter(t => Date.now() - t < RATE_WINDOW_MS);
+      const attempts = (memoryAttempts.get(ip) || []).filter((t) => Date.now() - t < RATE_WINDOW_MS);
       if (attempts.length >= MAX_FAILED_ATTEMPTS) {
         const retryAfter = Math.ceil((attempts[0] + RATE_WINDOW_MS - Date.now()) / 1000);
         return NextResponse.json({ error: 'Слишком много попыток входа. Попробуйте позже.', retryAfter }, { status: 429 });
       }
 
-      const candidate = String(password).trim();
-      const stored = await getStoredAdminPassword();
-
-      if (!stored) {
-        return NextResponse.json({ error: 'Password not configured' }, { status: 500 });
-      }
-
-      const candidateHash = crypto.createHash('sha256').update(candidate).digest('hex');
-      const isMatch = (candidate === stored) || (candidateHash === stored);
-
-      if (!isMatch) {
-        attempts.push(Date.now());
-        memoryAttempts.set(ip, attempts);
-        await new Promise(r => setTimeout(r, 600));
-        return NextResponse.json({ error: 'Неверный пароль' }, { status: 401 });
+      const result = await loginAdmin(String(password));
+      if ('error' in result) {
+        if (result.status === 401) {
+          attempts.push(Date.now());
+          memoryAttempts.set(ip, attempts);
+          await new Promise((r) => setTimeout(r, 600));
+        }
+        return NextResponse.json({ error: result.error }, { status: result.status });
       }
 
       memoryAttempts.delete(ip);
-      const token = createAdminToken(stored);
       return NextResponse.json({
         ok: true,
-        token,
-        message: 'Авторизация успешна'
+        token: result.token,
+        message: 'Авторизация успешна',
       });
     }
 
@@ -240,50 +305,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'get_admin_stats') {
-      const [lb, posts, authors, suggPosts, suggAuthors] = await Promise.all([
-        fetchSupabase<any[]>('leaderboard?select=nickname,score,accuracy').catch(() => []),
-        fetchSupabase<any[]>('posts?select=id').catch(() => []),
-        fetchSupabase<any[]>('authors?select=id').catch(() => []),
-        fetchSupabase<any[]>('suggestions_posts?select=id,status').catch(() => []),
-        fetchSupabase<any[]>('suggestions_authors?select=id,status').catch(() => [])
-      ]);
-
-      const leaderboardRows = Array.isArray(lb) ? lb : [];
-      let highest = 0;
-      let leader = '—';
-      const uniqueNicks = new Set<string>();
-
-      leaderboardRows.forEach((r) => {
-        const nick = (r.nickname || '').trim();
-        if (nick) uniqueNicks.add(nick);
-        const s = Number(r.score) || 0;
-        if (s > highest) {
-          highest = s;
-          leader = nick;
-        }
-      });
-
-      const pendingPostsCount = Array.isArray(suggPosts) ? suggPosts.filter((p) => !p.status || p.status === 'pending').length : 0;
-      const pendingAuthorsCount = Array.isArray(suggAuthors) ? suggAuthors.filter((a) => !a.status || a.status === 'pending').length : 0;
-
-      return NextResponse.json({
-        ok: true,
-        stats: {
-          totalGames: leaderboardRows.length,
-          uniquePlayers: uniqueNicks.size,
-          topScore: highest,
-          topPlayer: leader,
-          totalPosts: Array.isArray(posts) ? posts.length : 0,
-          totalAuthors: Array.isArray(authors) ? authors.length : 0,
-          pendingPosts: pendingPostsCount,
-          pendingAuthors: pendingAuthorsCount
-        }
-      });
+      const stats = await getAdminStats();
+      return NextResponse.json({ ok: true, stats });
     }
 
     if (action === 'get_posts') {
       const posts = await fetchSupabase<any[]>('posts?select=*&order=id.desc');
-      return NextResponse.json({ ok: true, posts: posts || [] });
+      const safePosts = (Array.isArray(posts) ? posts : []).map(screenshotRef);
+      return NextResponse.json({ ok: true, posts: safePosts });
     }
 
     if (action === 'get_authors') {
@@ -294,7 +323,7 @@ export async function POST(req: NextRequest) {
     if (action === 'get_suggestions') {
       const [suggestions, authorSuggestions] = await Promise.all([
         fetchSupabase<any[]>('suggestions_posts?select=*&order=id.desc').catch(() => []),
-        fetchSupabase<any[]>('suggestions_authors?select=*&order=id.desc').catch(() => [])
+        fetchSupabase<any[]>('suggestions_authors?select=*&order=id.desc').catch(() => []),
       ]);
 
       const pendingPosts = (Array.isArray(suggestions) ? suggestions : []).filter((s) => !s.status || s.status === 'pending');
@@ -303,7 +332,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         suggestions: pendingPosts,
-        authorSuggestions: pendingAuthors
+        authorSuggestions: pendingAuthors,
       });
     }
 
@@ -316,7 +345,7 @@ export async function POST(req: NextRequest) {
     if (action === 'export_backup') {
       const [posts, authors] = await Promise.all([
         fetchSupabase<any[]>('posts?select=*&order=id.desc').catch(() => []),
-        fetchSupabase<any[]>('authors?select=*&order=name.asc').catch(() => [])
+        fetchSupabase<any[]>('authors?select=*&order=name.asc').catch(() => []),
       ]);
       return NextResponse.json({
         ok: true,
@@ -325,8 +354,8 @@ export async function POST(req: NextRequest) {
           version: 1,
           exportedAt: new Date().toISOString(),
           posts: posts || [],
-          authors: authors || []
-        }
+          authors: authors || [],
+        },
       });
     }
 
@@ -349,8 +378,8 @@ export async function POST(req: NextRequest) {
               avatar_text: author.avatar_text || author.avatarText,
               badge: author.badge,
               bio: author.bio,
-              verified: Boolean(author.verified)
-            }
+              verified: Boolean(author.verified),
+            },
           }).catch(() => {});
         }
         invalidateAuthorsCache();
@@ -358,6 +387,10 @@ export async function POST(req: NextRequest) {
 
       if (Array.isArray(backup.posts) && backup.posts.length > 0) {
         for (const p of backup.posts) {
+          let screenshot = p.screenshot;
+          if (typeof screenshot === 'string' && screenshot && !/^https?:\/\//i.test(screenshot)) {
+            screenshot = await ensureStoredScreenshot(screenshot, 'posts').catch(() => p.screenshot);
+          }
           await fetchSupabase('posts', {
             method: 'POST',
             prefer: 'resolution=merge-duplicates',
@@ -365,11 +398,11 @@ export async function POST(req: NextRequest) {
               id: p.id,
               correct_author_id: p.correct_author_id || p.correctAuthorId,
               post_text: p.post_text || p.postText || '',
-              screenshot: p.screenshot,
+              screenshot,
               hint: p.hint || '',
               difficulty: p.difficulty || 'normal',
-              tags: p.tags || ['#итд']
-            }
+              tags: p.tags || ['#итд'],
+            },
           }).catch(() => {});
         }
       }
@@ -387,24 +420,37 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Invalid post data' }, { status: 400 });
       }
 
-      const compressedScreenshot = await optimizeScreenshot(post.screenshot);
+      const recordId = post.id || ('post_' + Date.now());
+      const previous = await fetchSupabase<any[]>(`posts?id=eq.${encodeURIComponent(recordId)}&select=screenshot`).catch(() => []);
+      const previousScreenshot = Array.isArray(previous) && previous.length > 0 ? previous[0].screenshot : null;
+
+      let screenshotUrl: string;
+      if (/^https?:\/\//i.test(post.screenshot)) {
+        screenshotUrl = post.screenshot;
+      } else {
+        screenshotUrl = await uploadDataUrlScreenshot(post.screenshot, 'posts');
+      }
 
       const record = {
-        id: post.id || ('post_' + Date.now()),
+        id: recordId,
         correct_author_id: post.correctAuthorId,
         post_text: post.postText || '',
-        screenshot: compressedScreenshot,
+        screenshot: screenshotUrl,
         hint: post.hint || '',
         difficulty: post.difficulty || 'normal',
         tags: post.tags || [],
-        likes: post.likes || 0
+        likes: post.likes || 0,
       };
 
       await fetchSupabase('posts', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates',
-        body: record
+        body: record,
       });
+
+      if (previousScreenshot && previousScreenshot !== screenshotUrl) {
+        await deleteStoredScreenshot(previousScreenshot);
+      }
 
       return NextResponse.json({ ok: true, post: record });
     }
@@ -413,9 +459,11 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: 'Post ID required' }, { status: 400 });
 
-      await fetchSupabase(`posts?id=eq.${encodeURIComponent(id)}`, {
-        method: 'DELETE'
-      });
+      const rows = await fetchSupabase<any[]>(`posts?id=eq.${encodeURIComponent(id)}&select=screenshot`).catch(() => []);
+      const screenshot = Array.isArray(rows) && rows.length > 0 ? rows[0].screenshot : null;
+
+      await fetchSupabase(`posts?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await deleteStoredScreenshot(screenshot);
 
       return NextResponse.json({ ok: true });
     }
@@ -434,13 +482,13 @@ export async function POST(req: NextRequest) {
         avatar_text: author.avatarText || author.avatar_text || (author.name ? author.name[0] : '?'),
         badge: author.badge || null,
         bio: author.bio || null,
-        verified: Boolean(author.verified)
+        verified: Boolean(author.verified),
       };
 
       await fetchSupabase('authors', {
         method: 'POST',
         prefer: 'resolution=merge-duplicates',
-        body: record
+        body: record,
       });
 
       invalidateAuthorsCache();
@@ -452,10 +500,7 @@ export async function POST(req: NextRequest) {
       const { id } = body;
       if (!id) return NextResponse.json({ error: 'Author ID required' }, { status: 400 });
 
-      await fetchSupabase(`authors?id=eq.${encodeURIComponent(id)}`, {
-        method: 'DELETE'
-      });
-
+      await fetchSupabase(`authors?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
       invalidateAuthorsCache();
 
       return NextResponse.json({ ok: true });
@@ -463,22 +508,12 @@ export async function POST(req: NextRequest) {
 
     if (action === 'change_password') {
       const { newPassword } = body;
-      if (!newPassword || newPassword.trim().length < 3) {
-        return NextResponse.json({ error: 'Password too short' }, { status: 400 });
+      if (!newPassword || String(newPassword).trim().length < 8) {
+        return NextResponse.json({ error: 'Пароль должен быть не короче 8 символов' }, { status: 400 });
       }
 
-      const val = newPassword.trim();
-      await fetchSupabase('admin_settings?on_conflict=key', {
-        method: 'POST',
-        prefer: 'resolution=merge-duplicates',
-        body: {
-          key: 'admin_password',
-          value: val,
-          updated_at: new Date().toISOString()
-        }
-      });
-
-      return NextResponse.json({ ok: true, token: createAdminToken(val), message: 'Пароль администратора обновлен' });
+      const { token: newToken } = await changeAdminPassword(String(newPassword).trim());
+      return NextResponse.json({ ok: true, token: newToken, message: 'Пароль администратора обновлен' });
     }
 
     if (action === 'moderate_post') {
@@ -486,7 +521,10 @@ export async function POST(req: NextRequest) {
       if (!id) return NextResponse.json({ error: 'Suggestion ID required' }, { status: 400 });
 
       if (status === 'approved' && postRecord) {
-        const compressedScreenshot = await optimizeScreenshot(postRecord.screenshot);
+        let screenshot = postRecord.screenshot;
+        if (typeof screenshot === 'string' && screenshot && !/^https?:\/\//i.test(screenshot)) {
+          screenshot = await ensureStoredScreenshot(screenshot, 'posts');
+        }
         await fetchSupabase('posts', {
           method: 'POST',
           prefer: 'resolution=merge-duplicates',
@@ -494,23 +532,21 @@ export async function POST(req: NextRequest) {
             id: postRecord.id || ('post_' + Date.now()),
             correct_author_id: postRecord.correctAuthorId,
             post_text: postRecord.postText || '',
-            screenshot: compressedScreenshot,
+            screenshot,
             hint: postRecord.hint || '',
             difficulty: 'normal',
-            tags: ['#итд']
-          }
+            tags: ['#итд'],
+          },
         });
       }
 
       try {
         await fetchSupabase(`suggestions_posts?id=eq.${encodeURIComponent(id)}`, {
           method: 'PATCH',
-          body: { status }
+          body: { status },
         });
       } catch {
-        await fetchSupabase(`suggestions_posts?id=eq.${encodeURIComponent(id)}`, {
-          method: 'DELETE'
-        });
+        await fetchSupabase(`suggestions_posts?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
       }
 
       return NextResponse.json({ ok: true });
@@ -530,13 +566,13 @@ export async function POST(req: NextRequest) {
           avatar_text: authorRecord.avatarText || authorRecord.avatar_text || (authorRecord.name ? authorRecord.name[0] : '?'),
           badge: authorRecord.badge || 'Автор ИТД',
           bio: authorRecord.bio || 'Популярный автор в ИТД',
-          verified: authorRecord.verified !== undefined ? Boolean(authorRecord.verified) : true
+          verified: authorRecord.verified !== undefined ? Boolean(authorRecord.verified) : true,
         };
 
         await fetchSupabase('authors', {
           method: 'POST',
           prefer: 'resolution=merge-duplicates',
-          body: record
+          body: record,
         });
         invalidateAuthorsCache();
       }
@@ -544,12 +580,10 @@ export async function POST(req: NextRequest) {
       try {
         await fetchSupabase(`suggestions_authors?id=eq.${encodeURIComponent(id)}`, {
           method: 'PATCH',
-          body: { status }
+          body: { status },
         });
       } catch {
-        await fetchSupabase(`suggestions_authors?id=eq.${encodeURIComponent(id)}`, {
-          method: 'DELETE'
-        });
+        await fetchSupabase(`suggestions_authors?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE' });
       }
 
       return NextResponse.json({ ok: true });
@@ -557,6 +591,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: `Unknown admin action: ${action}` }, { status: 400 });
   } catch (err: any) {
-    return NextResponse.json({ error: 'Internal server error', details: err.message }, { status: 500 });
+    return NextResponse.json(apiErrorPayload(err, 'Внутренняя ошибка сервера'), { status: 500 });
   }
 }

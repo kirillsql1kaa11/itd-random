@@ -1,35 +1,30 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 import { GameMode } from '@/types';
 import { generateRandomNickname } from '@/lib/utils';
 import { soundFx } from '@/lib/sound';
+import { useApp } from './AppProvider';
 
-interface HomeViewProps {
-  nickname: string;
-  onNicknameChange: (name: string) => void;
-  selectedMode: GameMode;
-  onModeChange: (mode: GameMode) => void;
-  onStartGame: () => void;
-  onOpenSuggestPost: () => void;
-  onOpenAuthors: () => void;
-  onOpenLeaderboard: () => void;
-}
+export function HomeView() {
+  const {
+    nickname,
+    handleNicknameChange,
+    selectedMode,
+    setSelectedMode,
+    startQuiz,
+    openSuggestPost,
+  } = useApp();
 
-export function HomeView({
-  nickname,
-  onNicknameChange,
-  selectedMode,
-  onModeChange,
-  onStartGame,
-  onOpenSuggestPost,
-  onOpenAuthors,
-  onOpenLeaderboard,
-}: HomeViewProps) {
   const handleRandomizeNick = () => {
     soundFx.playClick();
-    const newNick = generateRandomNickname();
-    onNicknameChange(newNick);
+    handleNicknameChange(generateRandomNickname());
+  };
+
+  const selectMode = (mode: GameMode) => {
+    soundFx.playClick();
+    setSelectedMode(mode);
   };
 
   return (
@@ -73,7 +68,7 @@ export function HomeView({
               placeholder="Введите никнейм..."
               maxLength={24}
               value={nickname}
-              onChange={(e) => onNicknameChange(e.target.value)}
+              onChange={(e) => handleNicknameChange(e.target.value)}
             />
           </div>
 
@@ -85,10 +80,7 @@ export function HomeView({
               <button
                 type="button"
                 className={`btn-home-mode ${selectedMode === 'blitz' ? 'active' : ''}`}
-                onClick={() => {
-                  soundFx.playClick();
-                  onModeChange('blitz');
-                }}
+                onClick={() => selectMode('blitz')}
               >
                 <strong>Блиц 10</strong>
                 <small>10 постов на очки</small>
@@ -96,10 +88,7 @@ export function HomeView({
               <button
                 type="button"
                 className={`btn-home-mode ${selectedMode === 'survival' ? 'active' : ''}`}
-                onClick={() => {
-                  soundFx.playClick();
-                  onModeChange('survival');
-                }}
+                onClick={() => selectMode('survival')}
               >
                 <strong>Выживание</strong>
                 <small>50 раундов, 3 жизни</small>
@@ -107,10 +96,7 @@ export function HomeView({
               <button
                 type="button"
                 className={`btn-home-mode ${selectedMode === 'practice' ? 'active' : ''}`}
-                onClick={() => {
-                  soundFx.playClick();
-                  onModeChange('practice');
-                }}
+                onClick={() => selectMode('practice')}
               >
                 <strong>Свободный</strong>
                 <small>100 раундов без таймера</small>
@@ -123,7 +109,7 @@ export function HomeView({
             type="button"
             onClick={() => {
               soundFx.playClick();
-              onStartGame();
+              startQuiz();
             }}
           >
             Начать игру
@@ -134,9 +120,18 @@ export function HomeView({
       <div className="home-actions-grid">
         <div
           className="home-action-box"
+          role="button"
+          tabIndex={0}
           onClick={() => {
             soundFx.playClick();
-            onOpenSuggestPost();
+            openSuggestPost();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              soundFx.playClick();
+              openSuggestPost();
+            }
           }}
         >
           <div className="hab-icon">
@@ -152,13 +147,7 @@ export function HomeView({
           </div>
         </div>
 
-        <div
-          className="home-action-box"
-          onClick={() => {
-            soundFx.playClick();
-            onOpenAuthors();
-          }}
-        >
+        <Link href="/authors" className="home-action-box" onClick={() => soundFx.playClick()}>
           <div className="hab-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -169,15 +158,9 @@ export function HomeView({
             <strong>Авторы ИТД</strong>
             <p>Поиск авторов и предложение новых участников</p>
           </div>
-        </div>
+        </Link>
 
-        <div
-          className="home-action-box"
-          onClick={() => {
-            soundFx.playClick();
-            onOpenLeaderboard();
-          }}
-        >
+        <Link href="/leaderboard" className="home-action-box" onClick={() => soundFx.playClick()}>
           <div className="hab-icon">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="8" r="7"></circle>
@@ -188,7 +171,7 @@ export function HomeView({
             <strong>Рейтинг игроков</strong>
             <p>Таблица рекордов и лучших серий ответов</p>
           </div>
-        </div>
+        </Link>
       </div>
     </section>
   );

@@ -7,7 +7,9 @@ __pycache__/
 *$py.class
 *.env*
 .env*
+!.env.example
 *.sql
+!supabase/migrations/*.sql
 
 .vscode/
 .idea/

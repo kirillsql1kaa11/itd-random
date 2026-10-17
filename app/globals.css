@@ -2871,3 +2871,210 @@ select {
 .search-input {
   font-size: 13px !important;
 }
+
+.analytics-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+
+.analytics-metric {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.am-label {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.am-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-family: var(--font-heading);
+    color: var(--text-primary);
+}
+
+.analytics-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: var(--text-secondary);
+    margin: 18px 0 10px;
+}
+
+.analytics-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 140px;
+    padding: 4px 2px 0;
+    overflow-x: auto;
+}
+
+.analytics-bar-col {
+    flex: 1;
+    min-width: 18px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.analytics-bar-track {
+    width: 100%;
+    max-width: 26px;
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.analytics-bar {
+    width: 100%;
+    min-height: 2px;
+    background: linear-gradient(180deg, var(--accent-blue), rgba(0, 128, 255, 0.3));
+    border-radius: 4px 4px 0 0;
+    transition: var(--transition);
+}
+
+.analytics-bar:hover {
+    filter: brightness(1.25);
+}
+
+.analytics-bar-label {
+    font-size: 9px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.analytics-funnel {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.analytics-funnel-row {
+    display: grid;
+    grid-template-columns: 150px 1fr 52px;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.analytics-funnel-track {
+    height: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius-pill);
+    overflow: hidden;
+}
+
+.analytics-funnel-fill {
+    height: 100%;
+    background: var(--accent-blue);
+    border-radius: var(--radius-pill);
+    transition: var(--transition);
+}
+
+.analytics-funnel-fill.funnel-played {
+    background: var(--accent-amber);
+}
+
+.analytics-funnel-fill.funnel-submitted {
+    background: var(--accent-green);
+}
+
+.analytics-funnel-value {
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: right;
+}
+
+.analytics-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0;
+}
+
+.result-submit-status {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin: 4px 0 16px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.rss-answers {
+    color: var(--text-secondary);
+}
+
+.rss-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.rss-note.rss-done {
+    color: var(--accent-green);
+    font-weight: 600;
+}
+
+.rss-note.rss-error {
+    color: var(--accent-danger);
+}
+
+.rss-note.rss-test {
+    color: var(--accent-amber);
+    font-weight: 600;
+}
+
+.rss-retry {
+    background: none;
+    border: 1px solid var(--border-hover);
+    border-radius: var(--radius-pill);
+    color: var(--text-primary);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 3px 12px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.rss-retry:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent-blue);
+}
+
+@media (max-width: 640px) {
+    .analytics-metrics {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .analytics-funnel-row {
+        grid-template-columns: 110px 1fr 44px;
+        font-size: 11px;
+    }
+
+    .analytics-bar-label {
+        display: none;
+    }
+
+    .analytics-bar-col:nth-child(odd) .analytics-bar-label {
+        display: block;
+        font-size: 8px;
+    }
+}

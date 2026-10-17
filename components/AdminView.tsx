@@ -1,26 +1,19 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Author } from '@/types';
+import { useRouter } from 'next/navigation';
+import { AdminStats, Author } from '@/types';
 import { soundFx } from '@/lib/sound';
+import { useApp } from './AppProvider';
+import { AdminAnalytics } from './AdminAnalytics';
 
-interface AdminViewProps {
-  onGoHome: () => void;
-  onTestQuestion?: (post: any) => void;
-}
+export function AdminView() {
+  const router = useRouter();
+  const { startTestQuiz } = useApp();
+  const goHome = () => {
+    router.push('/');
+  };
 
-interface AdminStats {
-  totalGames: number;
-  uniquePlayers: number;
-  topScore: number;
-  topPlayer: string;
-  totalPosts: number;
-  totalAuthors: number;
-  pendingPosts: number;
-  pendingAuthors: number;
-}
-
-export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
   const [token, setToken] = useState<string | null>(null);
   const [pinPassword, setPinPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -35,6 +28,18 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
     totalAuthors: 0,
     pendingPosts: 0,
     pendingAuthors: 0,
+    dau: 0,
+    wau: 0,
+    gamesToday: 0,
+    games7d: 0,
+    completionRate: 0,
+    returnRate: 0,
+    avgScore: 0,
+    avgAccuracy: 0,
+    suggestionConversion: 0,
+    daily: [],
+    funnel: { started: 0, played: 0, submitted: 0 },
+    hardQuestions: [],
   });
 
   const [posts, setPosts] = useState<any[]>([]);
@@ -174,7 +179,7 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
     soundFx.playClick();
     sessionStorage.removeItem('itd_admin_token');
     setToken(null);
-    onGoHome();
+    goHome();
   };
 
   const handleFile = (file: File) => {
@@ -707,7 +712,7 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
     return (
       <div className="modal-backdrop" id="modal-admin-pin" style={{ display: 'flex' }}>
         <div className="modal-card">
-          <button className="modal-close-btn" id="btn-close-pin-modal" onClick={onGoHome}>
+          <button className="modal-close-btn" id="btn-close-pin-modal" onClick={goHome}>
             ✕
           </button>
           <h2 className="modal-title">Вход в панель управления</h2>
@@ -790,7 +795,7 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
             type="button"
             className="btn-primary-action"
             id="btn-admin-go-home"
-            onClick={onGoHome}
+            onClick={goHome}
             style={{ fontSize: 12, padding: '6px 14px' }}
           >
             ← На главную
@@ -880,6 +885,8 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
           <div className="asm-hint" id="admin-stat-pending-detail">{suggestions.length} постов, {authorSuggestions.length} авторов</div>
         </div>
       </div>
+
+      <AdminAnalytics stats={stats} />
 
       <div className="admin-card">
         <div className="admin-card-title">
@@ -1421,8 +1428,7 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
                           className="btn-action-icon test-btn"
                           title="Протестировать вопрос"
                           onClick={() => {
-                            if (onTestQuestion) onTestQuestion(post);
-                            else alert(`Тестирование вопроса: ${author.name}`);
+                            startTestQuiz(post);
                           }}
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
@@ -1653,7 +1659,7 @@ export function AdminView({ onGoHome, onTestQuestion }: AdminViewProps) {
       </div>
 
       <div style={{ marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid var(--border-subtle)', flexWrap: 'wrap', gap: 12 }}>
-        <button type="button" className="btn-secondary-action" onClick={onGoHome}>
+        <button type="button" className="btn-secondary-action" onClick={goHome}>
           ← Вернуться на главную
         </button>
         <button type="button" className="btn-danger-outline" onClick={handleLogout}>

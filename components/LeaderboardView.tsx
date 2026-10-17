@@ -1,48 +1,65 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { LeaderboardRecord } from '@/types';
 import { soundFx } from '@/lib/sound';
-import { useVirtualizer } from '@tanstack/react-virtual';
+
+const MODES = [
+  { id: 'all', label: 'Все' },
+  { id: 'blitz', label: 'Блиц 10' },
+  { id: 'survival', label: 'Выживание' },
+  { id: 'practice', label: 'Свободный' },
+] as const;
+
+type ModeId = (typeof MODES)[number]['id'];
+
+const PAGE_SIZE = 20;
 
 export function LeaderboardView() {
   const [records, setRecords] = useState<LeaderboardRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterMode, setFilterMode] = useState<'all' | 'blitz' | 'survival' | 'practice'>('all');
-  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [error, setError] = useState('');
+  const [filterMode, setFilterMode] = useState<ModeId>('all');
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  const loadLeaderboard = async () => {
+  const loadLeaderboard = useCallback(async (mode: ModeId, targetPage: number) => {
     setLoading(true);
+    setError('');
     try {
-      const res = await fetch('/api/leaderboard?limit=100');
+      const res = await fetch(`/api/leaderboard?mode=${mode}&page=${targetPage}&limit=${PAGE_SIZE}`);
       const data = await res.json();
-      if (data && data.ok) {
-        setRecords(data.leaderboard || []);
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || 'Ошибка загрузки');
       }
+      setRecords(Array.isArray(data.leaderboard) ? data.leaderboard : []);
+      setTotal(Number(data.total) || 0);
+      setPages(Math.max(1, Number(data.pages) || 1));
     } catch {
+      setRecords([]);
+      setTotal(0);
+      setPages(1);
+      setError('Не удалось загрузить рейтинг');
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadLeaderboard();
   }, []);
 
-  const filteredRecords = filterMode === 'all'
-    ? records
-    : records.filter((r) => r.mode === filterMode);
+  useEffect(() => {
+    loadLeaderboard(filterMode, page);
+  }, [filterMode, page, loadLeaderboard]);
 
-  const rowVirtualizer = useVirtualizer({
-    count: filteredRecords.length,
-    getScrollElement: () => tableContainerRef.current,
-    estimateSize: () => 48,
-    overscan: 8,
-  });
+  const changeMode = (mode: ModeId) => {
+    soundFx.playClick();
+    setPage(1);
+    setFilterMode(mode);
+  };
 
-  const virtualRows = rowVirtualizer.getVirtualItems();
-  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
+  const goToPage = (next: number) => {
+    soundFx.playClick();
+    setPage(Math.min(Math.max(1, next), pages));
+  };
 
   return (
     <section className="app-view">
@@ -57,7 +74,7 @@ export function LeaderboardView() {
           disabled={loading}
           onClick={() => {
             soundFx.playClick();
-            loadLeaderboard();
+            loadLeaderboard(filterMode, page);
           }}
         >
           {loading ? 'Загрузка...' : 'Обновить'}
@@ -65,53 +82,23 @@ export function LeaderboardView() {
       </div>
 
       <div className="mode-pills" style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          className={`btn-mode-select ${filterMode === 'all' ? 'active' : ''}`}
-          onClick={() => {
-            soundFx.playClick();
-            setFilterMode('all');
-          }}
-        >
-          Все
-        </button>
-        <button
-          type="button"
-          className={`btn-mode-select ${filterMode === 'blitz' ? 'active' : ''}`}
-          onClick={() => {
-            soundFx.playClick();
-            setFilterMode('blitz');
-          }}
-        >
-          Блиц 10
-        </button>
-        <button
-          type="button"
-          className={`btn-mode-select ${filterMode === 'survival' ? 'active' : ''}`}
-          onClick={() => {
-            soundFx.playClick();
-            setFilterMode('survival');
-          }}
-        >
-          Выживание
-        </button>
-        <button
-          type="button"
-          className={`btn-mode-select ${filterMode === 'practice' ? 'active' : ''}`}
-          onClick={() => {
-            soundFx.playClick();
-            setFilterMode('practice');
-          }}
-        >
-          Свободный
-        </button>
+        {MODES.map((mode) => (
+          <button
+            key={mode.id}
+            type="button"
+            className={`btn-mode-select ${filterMode === mode.id ? 'active' : ''}`}
+            onClick={() => changeMode(mode.id)}
+          >
+            {mode.label}
+          </button>
+        ))}
       </div>
 
-      <div className="table-responsive" ref={tableContainerRef} style={{ marginTop: 16, maxHeight: 520, overflowY: 'auto' }}>
+      <div className="table-responsive" style={{ marginTop: 16 }}>
         <table className="admin-posts-table">
           <thead>
             <tr>
-              <th style={{ width: 50 }}>Место</th>
+              <th style={{ width: 62 }}>Место</th>
               <th>Игрок</th>
               <th>Очки</th>
               <th>Серия</th>
@@ -120,70 +107,78 @@ export function LeaderboardView() {
             </tr>
           </thead>
           <tbody>
-            {filteredRecords.length === 0 ? (
+            {records.length === 0 ? (
               <tr>
                 <td colSpan={6} className="table-empty">
-                  {loading ? 'Загрузка рейтинга...' : 'Нет записей в выбранном режиме'}
+                  {loading ? 'Загрузка рейтинга...' : error || 'Нет записей в выбранном режиме'}
                 </td>
               </tr>
             ) : (
-              <>
-                {paddingTop > 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ height: `${paddingTop}px`, padding: 0, border: 'none' }} />
-                  </tr>
-                )}
-                {virtualRows.map((virtualRow) => {
-                  const r = filteredRecords[virtualRow.index];
-                  const globalRank = virtualRow.index + 1;
-                  let medalClass = '';
-                  if (globalRank === 1) medalClass = 'rank-1';
-                  else if (globalRank === 2) medalClass = 'rank-2';
-                  else if (globalRank === 3) medalClass = 'rank-3';
+              records.map((record, index) => {
+                const globalRank = (page - 1) * PAGE_SIZE + index + 1;
+                let medalClass = '';
+                if (globalRank === 1) medalClass = 'rank-1';
+                else if (globalRank === 2) medalClass = 'rank-2';
+                else if (globalRank === 3) medalClass = 'rank-3';
 
-                  return (
-                    <tr key={r.id || virtualRow.index} style={{ height: 48 }}>
-                      <td>
-                        {medalClass ? (
-                          <span className={`lb-medal ${medalClass}`}>{globalRank}</span>
-                        ) : (
-                          <span style={{ color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 6 }}>
-                            {globalRank}
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <strong style={{ color: 'var(--text-primary)' }}>{r.nickname}</strong>
-                      </td>
-                      <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {r.score}
-                      </td>
-                      <td style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>
-                        x{r.streak}
-                      </td>
-                      <td style={{ color: 'var(--accent-green)', fontWeight: 600 }}>
-                        {r.accuracy}%
-                      </td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                        {r.mode === 'blitz' ? 'Блиц 10' : r.mode === 'survival' ? 'Выживание' : 'Свободный'}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {paddingBottom > 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ height: `${paddingBottom}px`, padding: 0, border: 'none' }} />
+                return (
+                  <tr key={record.id || `${record.nickname}-${globalRank}`}>
+                    <td>
+                      {medalClass ? (
+                        <span className={`lb-medal ${medalClass}`}>{globalRank}</span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 600, paddingLeft: 6 }}>
+                          {globalRank}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <strong style={{ color: 'var(--text-primary)' }}>{record.nickname}</strong>
+                    </td>
+                    <td style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {record.score}
+                    </td>
+                    <td style={{ color: 'var(--accent-amber)', fontWeight: 600 }}>
+                      x{record.streak}
+                    </td>
+                    <td style={{ color: 'var(--accent-green)', fontWeight: 600 }}>
+                      {record.accuracy}%
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                      {record.mode === 'blitz' ? 'Блиц 10' : record.mode === 'survival' ? 'Выживание' : 'Свободный'}
+                    </td>
                   </tr>
-                )}
-              </>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      <div className="admin-pagination-bar" id="leaderboard-pagination" style={{ marginTop: 16 }}>
-        <div className="admin-pagination-info" id="leaderboard-page-info">
-          Записей: {filteredRecords.length}
+      <div className="admin-pagination-bar" style={{ marginTop: 16 }}>
+        <div className="admin-pagination-info">
+          Всего записей: {total}
+        </div>
+        <div className="admin-pagination-controls">
+          <button
+            type="button"
+            className="btn-page-nav"
+            disabled={loading || page <= 1}
+            onClick={() => goToPage(page - 1)}
+          >
+            ← Назад
+          </button>
+          <span className="admin-pagination-page">
+            {page} / {pages}
+          </span>
+          <button
+            type="button"
+            className="btn-page-nav"
+            disabled={loading || page >= pages}
+            onClick={() => goToPage(page + 1)}
+          >
+            Вперед →
+          </button>
         </div>
       </div>
     </section>

@@ -1,16 +1,22 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Volume2, VolumeX, HelpCircle, Trophy, Users, BarChart3, Home } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { Volume2, VolumeX, HelpCircle } from 'lucide-react';
 import { soundFx } from '@/lib/sound';
+import { useApp } from './AppProvider';
 
-interface HeaderProps {
-  activeTab: string;
-  onTabChange: (tab: string) => void;
-  onOpenRules: () => void;
-}
+const NAV_ITEMS = [
+  { href: '/', label: 'Главная' },
+  { href: '/leaderboard', label: 'Рейтинг' },
+  { href: '/authors', label: 'Авторы' },
+  { href: '/stats', label: 'Статистика' },
+];
 
-export function Header({ activeTab, onTabChange, onOpenRules }: HeaderProps) {
+export function Header() {
+  const pathname = usePathname();
+  const { openRules } = useApp();
   const [isMuted, setIsMuted] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -24,54 +30,40 @@ export function Header({ activeTab, onTabChange, onOpenRules }: HeaderProps) {
     setIsMuted(nextMuted);
   };
 
-  const navItems = [
-    { id: 'home', label: 'Главная', icon: Home },
-    { id: 'leaderboard', label: 'Рейтинг', icon: Trophy },
-    { id: 'authors', label: 'Авторы', icon: Users },
-    { id: 'stats', label: 'Статистика', icon: BarChart3 },
-  ];
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
 
   return (
     <header className="app-header">
       <div className="header-container">
         <div className="logo-group">
-          <a
-            href="#"
-            className="logo-badge"
-            onClick={(e) => {
-              e.preventDefault();
-              onTabChange('home');
-            }}
-          >
+          <Link href="/" className="logo-badge" onClick={() => soundFx.playClick()}>
             <span className="logo-dot"></span>
             ИТД <span style={{ fontWeight: 400, opacity: 0.6 }}>· КТО АВТОР?</span>
-          </a>
+          </Link>
         </div>
 
         <nav className="nav-tabs" aria-label="Основная навигация">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                className={`nav-tab-btn ${isActive ? 'active' : ''}`}
-                onClick={() => {
-                  soundFx.playClick();
-                  onTabChange(item.id);
-                }}
-              >
-                {item.label}
-              </button>
-            );
-          })}
+          {NAV_ITEMS.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={false}
+              className={`nav-tab-btn ${isActive(item.href) ? 'active' : ''}`}
+              onClick={() => soundFx.playClick()}
+            >
+              {item.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="header-controls">
           <button
             type="button"
             className="icon-btn"
-            onClick={onOpenRules}
+            onClick={openRules}
             title="Правила игры"
           >
             <HelpCircle size={16} />

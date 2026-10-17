@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { soundFx } from '@/lib/sound';
-import { GameMode } from '@/types';
+import { GameMode, SubmitState } from '@/types';
 
 interface ResultViewProps {
   score: number;
@@ -12,7 +12,8 @@ interface ResultViewProps {
   totalCount: number;
   mode: GameMode;
   nickname: string;
-  sessionToken: string | null;
+  isTest?: boolean;
+  submitState?: SubmitState;
   history?: Array<{
     post: any;
     correctAuthor: {
@@ -25,6 +26,7 @@ interface ResultViewProps {
   onPlayAgain: () => void;
   onGoHome: () => void;
   onGoLeaderboard?: () => void;
+  onRetrySubmit?: () => void;
 }
 
 export function ResultView({
@@ -35,11 +37,13 @@ export function ResultView({
   totalCount,
   mode,
   nickname,
-  sessionToken,
+  isTest = false,
+  submitState = 'idle',
   history = [],
   onPlayAgain,
   onGoHome,
   onGoLeaderboard,
+  onRetrySubmit,
 }: ResultViewProps) {
   const [shareImage, setShareImage] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<string | null>(null);
@@ -73,18 +77,6 @@ export function ResultView({
         if (img) setShareImage(img);
       })
       .catch(() => {});
-
-    if (sessionToken) {
-      fetch('/api/quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'submit_score',
-          sessionToken,
-          nickname: nickname || 'Аноним',
-        }),
-      }).catch(() => {});
-    }
   }, []);
 
   const handleCopyImage = async () => {
@@ -151,6 +143,26 @@ export function ResultView({
             <div className="val" id="sum-accuracy">{accuracy}%</div>
             <div className="lbl">Точность</div>
           </div>
+        </div>
+
+        <div className="result-submit-status">
+          <span className="rss-answers">{correctCount} из {totalCount} правильных ответов</span>
+          {isTest ? (
+            <span className="rss-note rss-test">Тестовый режим: результат не попадает в рейтинг</span>
+          ) : submitState === 'saving' ? (
+            <span className="rss-note">Сохраняем результат в рейтинге...</span>
+          ) : submitState === 'done' ? (
+            <span className="rss-note rss-done">Результат сохранен в рейтинге</span>
+          ) : submitState === 'error' ? (
+            <span className="rss-note rss-error">
+              Не удалось сохранить результат.
+              {onRetrySubmit && (
+                <button type="button" className="rss-retry" onClick={onRetrySubmit}>
+                  Повторить
+                </button>
+              )}
+            </span>
+          ) : null}
         </div>
 
         {shareImage && (

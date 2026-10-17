@@ -1,12 +1,9 @@
 'use client';
 
 import React from 'react';
+import Link from 'next/link';
 
-interface FooterProps {
-  onOpenAdmin: () => void;
-}
-
-export function Footer({ onOpenAdmin }: FooterProps) {
+export function Footer() {
   return (
     <footer className="app-footer">
       <span>ИТД: Угадай Автора</span>
@@ -32,13 +29,9 @@ export function Footer({ onOpenAdmin }: FooterProps) {
         итд.com ↗
       </a>
       <span>•</span>
-      <button
-        type="button"
-        className="footer-admin-btn"
-        onClick={onOpenAdmin}
-      >
+      <Link href="/admin" className="footer-admin-btn">
         Панель управления
-      </button>
+      </Link>
     </footer>
   );
 }

@@ -5,11 +5,10 @@ import { Author } from '@/types';
 import { soundFx } from '@/lib/sound';
 import { getAuthorsClient } from '@/lib/authors-client';
 
-interface AuthorsViewProps {
-  onOpenSuggestAuthor: () => void;
-}
+import { useApp } from './AppProvider';
 
-export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
+export function AuthorsView() {
+  const { openSuggestAuthor } = useApp();
   const [authors, setAuthors] = useState<Author[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -48,7 +47,7 @@ export function AuthorsView({ onOpenSuggestAuthor }: AuthorsViewProps) {
           style={{ fontSize: 12, padding: '8px 16px' }}
           onClick={() => {
             soundFx.playClick();
-            onOpenSuggestAuthor();
+            openSuggestAuthor();
           }}
         >
           + Предложить автора

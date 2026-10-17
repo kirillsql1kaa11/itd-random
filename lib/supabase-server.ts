@@ -1,28 +1,34 @@
-import { APP_CONFIG } from './config';
+import { getSupabaseServiceKey, getSupabaseUrl } from './config';
 
-export async function fetchSupabase<T = any>(endpoint: string, options: {
+export interface SupabaseRequestOptions {
   method?: string;
   headers?: Record<string, string>;
   body?: any;
   prefer?: string;
-} = {}): Promise<T> {
-  const url = `${APP_CONFIG.supabaseUrl}/rest/v1/${endpoint}`;
-  const key = APP_CONFIG.serviceRoleKey || APP_CONFIG.supabaseKey;
+}
+
+export async function fetchSupabaseResponse(endpoint: string, options: SupabaseRequestOptions = {}): Promise<Response> {
+  const url = `${getSupabaseUrl()}/rest/v1/${endpoint}`;
+  const key = getSupabaseServiceKey();
 
   const headers: Record<string, string> = {
-    'apikey': key,
-    'Authorization': `Bearer ${key}`,
+    apikey: key,
+    Authorization: `Bearer ${key}`,
     'Content-Type': 'application/json',
-    ...(options.prefer ? { 'Prefer': options.prefer } : {}),
-    ...(options.headers || {})
+    ...(options.prefer ? { Prefer: options.prefer } : {}),
+    ...(options.headers || {}),
   };
 
-  const res = await fetch(url, {
+  return fetch(url, {
     method: options.method || 'GET',
     headers,
     body: options.body ? (typeof options.body === 'string' ? options.body : JSON.stringify(options.body)) : undefined,
-    cache: 'no-store'
+    cache: 'no-store',
   });
+}
+
+export async function fetchSupabase<T = any>(endpoint: string, options: SupabaseRequestOptions = {}): Promise<T> {
+  const res = await fetchSupabaseResponse(endpoint, options);
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -41,12 +47,24 @@ export async function fetchSupabase<T = any>(endpoint: string, options: {
   }
 }
 
+export async function fetchAllRows<T = any>(endpoint: string, pageSize = 1000, maxPages = 5): Promise<T[]> {
+  const rows: T[] = [];
+  for (let page = 0; page < maxPages; page++) {
+    const sep = endpoint.includes('?') ? '&' : '?';
+    const chunk = await fetchSupabase<T[]>(`${endpoint}${sep}limit=${pageSize}&offset=${page * pageSize}`);
+    if (!Array.isArray(chunk) || chunk.length === 0) break;
+    rows.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+  return rows;
+}
+
 let serverAuthorsCache: { data: any[]; timestamp: number } | null = null;
 const AUTHORS_CACHE_TTL = 15 * 60 * 1000;
 
 export async function getCachedAuthors(forceRefresh: boolean = false): Promise<any[]> {
   const now = Date.now();
-  if (!forceRefresh && serverAuthorsCache && (now - serverAuthorsCache.timestamp < AUTHORS_CACHE_TTL)) {
+  if (!forceRefresh && serverAuthorsCache && now - serverAuthorsCache.timestamp < AUTHORS_CACHE_TTL) {
     return serverAuthorsCache.data;
   }
   const data = await fetchSupabase<any[]>('authors?select=*&order=name.asc');
@@ -57,4 +75,13 @@ export async function getCachedAuthors(forceRefresh: boolean = false): Promise<a
 
 export function invalidateAuthorsCache(): void {
   serverAuthorsCache = null;
+}
+
+export function apiErrorPayload(err: any, fallback: string): { error: string; details?: string } {
+  const message = String(err?.message || '');
+  const isConfigError = message.startsWith('SUPABASE_') || message.startsWith('API_SECRET');
+  if (isConfigError || process.env.NODE_ENV !== 'production') {
+    return { error: fallback, details: message.slice(0, 300) };
+  }
+  return { error: fallback };
 }
